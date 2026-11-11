@@ -16,14 +16,21 @@ export interface StatementItem {
   answer?: string; // 'Benar'|'Salah' or 'Sesuai'|'Tidak Sesuai' or 'Mendukung'|'Tidak Mendukung'
 }
 
+export interface MatchingPairItem {
+  id: string;
+  left: string;
+  right: string;
+}
+
 export interface QuestionItem {
   number: number;
-  type: 'pg' | 'pgk' | 'bs' | 'sts' | 'mtm';
+  type: 'pg' | 'pgk' | 'bs' | 'sts' | 'mtm' | 'jodohkan' | 'isian';
   competency: string;
   cognitiveLevel: string; // 'L1 - Pemahaman', 'L2 - Penerapan', 'L3 - Penalaran/HOTS'
   prompt: string;
   options?: OptionItem[];
   statements?: StatementItem[];
+  matchingPairs?: MatchingPairItem[];
   correctAnswer: string | string[] | Record<string, string>;
   explanation: string;
 }

@@ -59,19 +59,50 @@ function cleanJsonResponse(raw: string): any {
   return JSON.parse(cleaned);
 }
 
+// Fallback helper across models to ensure high availability during demand spikes
+async function generateWithGeminiFallback(prompt: string, mimeType = 'application/json'): Promise<{ text: string; model: string }> {
+  const candidateModels = ['gemini-flash-latest', APP_CONFIG.geminiModel, 'gemini-3.1-flash-lite'];
+  let lastError: any = null;
+
+  for (const model of candidateModels) {
+    try {
+      const response = await ai.models.generateContent({
+        model,
+        contents: prompt,
+        config: {
+          responseMimeType: mimeType,
+        },
+      });
+      if (response && response.text) {
+        return { text: response.text, model };
+      }
+    } catch (err: any) {
+      console.warn(`Model ${model} unavailable, trying fallback:`, err?.message || err);
+      lastError = err;
+    }
+  }
+  throw lastError || new Error('Gagal memproses dengan model AI.');
+}
+
 // POST /api/generate-tka
 app.post('/api/generate-tka', async (req: Request, res: Response): Promise<void> => {
   const {
     kisiKisi,
     subjectName = 'Otomatis',
     grade = 'Kelas 5 SD/MI',
-    numStimulus = 6, // default to 6 stimuli -> 18 questions (or 10 stimuli -> 30 questions)
+    numStimulus = 4,
+    numQuestions,
+    questionTypes = 'campuran' // 'campuran' | 'pg' | 'pgk' | 'bs' | 'jodohkan' | 'isian'
   } = req.body;
 
   if (!kisiKisi || typeof kisiKisi !== 'string' || kisiKisi.trim().length === 0) {
     res.status(400).json({ error: 'Kisi-kisi materi wajib diisi.' });
     return;
   }
+
+  // Calculate actual number of stimuli and target questions
+  const totalTargetQuestions = numQuestions ? Math.max(3, Number(numQuestions)) : (numStimulus * 3);
+  const calculatedStimulusCount = Math.max(1, Math.ceil(totalTargetQuestions / 3));
 
   // Check if AI is configured
   if (!ai || !apiKey) {
@@ -83,6 +114,26 @@ app.post('/api/generate-tka', async (req: Request, res: Response): Promise<void>
   }
 
   try {
+    let typeInstructions = `Variasikan tipe soal secara seimbang:
+   - 'pg' : Pilihan Ganda biasa (1 jawaban benar dari pilihan A, B, C, D)
+   - 'pgk' : Pilihan Ganda Kompleks (jawaban benar lebih dari satu, minimal 2 benar)
+   - 'bs' : Benar / Salah (tabel dengan 3-4 baris pernyataan)
+   - 'sts' : Sesuai / Tidak Sesuai
+   - 'jodohkan' : Menjodohkan (pasangkan 3-4 konsep kiri dan kanan)
+   - 'isian' : Isian Singkat berorientasi konsep/numerik`;
+
+    if (questionTypes === 'pg') {
+      typeInstructions = `Seluruh butir soal WAJIB berformat 'pg' (Pilihan Ganda biasa dengan opsi A, B, C, D dan 1 jawaban benar).`;
+    } else if (questionTypes === 'pgk') {
+      typeInstructions = `Seluruh butir soal WAJIB berformat 'pgk' (Pilihan Ganda Kompleks, opsi A, B, C, D dengan jawaban benar minimal 2).`;
+    } else if (questionTypes === 'bs') {
+      typeInstructions = `Seluruh butir soal WAJIB berformat 'bs' (Benar / Salah) dengan tabel 3-4 pernyataan.`;
+    } else if (questionTypes === 'jodohkan') {
+      typeInstructions = `Seluruh butir soal WAJIB berformat 'jodohkan' (Menjodohkan) dengan 3-4 pasangan premis kiri dan respon kanan.`;
+    } else if (questionTypes === 'isian') {
+      typeInstructions = `Seluruh butir soal WAJIB berformat 'isian' (Isian Singkat berorientasi kata kunci atau angka pasti).`;
+    }
+
     const prompt = `
 Bertindaklah sebagai Penyusun Asesmen Profesional Pusat Asesmen Pendidikan (Pusmendik) Kemendikdasmen RI untuk platform "KELAS 5 JUARA - TKA GURU".
 Tugas Anda adalah menghasilkan paket naskah soal Tes Kemampuan Akademik (TKA) lengkap, valid, berbobot HOTS (High Order Thinking Skills), kontekstual, dan siap uji berdasarkan kisi-kisi berikut:
@@ -95,25 +146,17 @@ ${kisiKisi.trim()}
 [KETENTUAN UTAMA]:
 1. Mata Pelajaran: Deteksi otomatis dari kisi-kisi jika belum ditentukan (bisa Matematika, Bahasa Indonesia, IPAS, Pendidikan Pancasila, PADB, Seni Rupa, PJOK, Bahasa Inggris, atau Bahasa Sunda).
 2. Jenjang: ${grade}.
-3. STRUKTUR KELOMPOK SOAL (STANDAR EMAS PUSMENDIK):
-   - Hasilkan ${numStimulus} kelompok stimulus (total = ${numStimulus * 3} soal).
-   - PRINSIP: Tepat 1 stimulus untuk 3 butir soal!
-   - Ketiga butir soal menguji kemampuan penalaran yang berbeda dan harus secara nyata merujuk pada isi stimulus.
+3. STRUKTUR KELOMPOK SOAL:
+   - Hasilkan ${calculatedStimulusCount} kelompok stimulus (total = ${totalTargetQuestions} butir soal).
+   - PRINSIP: 1 stimulus untuk sekitar 3 butir soal yang saling berurutan dan menguji kemampuan penalaran berbeda.
 4. VARIASI TIPE SOAL:
-   Jangan hanya membuat pilihan ganda biasa! Variasikan dengan tipe:
-   - 'pg' : Pilihan Ganda biasa (1 jawaban benar dari pilihan A, B, C, D)
-   - 'pgk' : Pilihan Ganda Kompleks (jawaban benar lebih dari satu, minimal 2 benar)
-   - 'bs' : Benar / Salah (tabel dengan 3-4 baris pernyataan yang harus dinilai siswa)
-   - 'sts' : Sesuai / Tidak Sesuai (tabel pernyataan kesesuaian fakta dengan teks)
-   - 'mtm' : Mendukung / Tidak Mendukung (evaluasi argumen)
+   ${typeInstructions}
 5. STIMULUS:
    - Untuk Matematika/IPAS: Berikan stimulus berupa narasi cerita kehidupan nyata, tabel data terstruktur, atau data statistik yang realistis.
-   - Untuk Bahasa Indonesia/Agama/Pancasila/Sunda/Inggris: Berikan teks naratif, cerita inspiratif, teks eksplanasi ilmiah, atau infografis deskriptif.
-   - Sediakan "svgDiagram" berupa kode SVG inline sederhana dan rapi jika soal matematika (misal denah bangun datar, grafik batang, pie chart, balok/kubus) agar tampilan naskah memukau!
+   - Sediakan "svgDiagram" berupa kode SVG inline sederhana dan rapi jika soal matematika/geometri agar tampilan naskah memukau!
 6. KUNCI DAN PEMBAHASAN:
    - Kunci jawaban harus diverifikasi 100% akurat.
-   - Untuk matematika: Pembahasan wajib menyertakan langkah perhitungan matematis detail.
-   - Untuk literasi/teks: Pembahasan wajib menyertakan rujukan kalimat atau bukti konkret dalam stimulus.
+   - Pembahasan wajib menyertakan langkah perhitungan matematis detail atau rujukan kalimat dalam stimulus.
 
 Keluarkan dalam format JSON yang murni dan valid sesuai skema berikut tanpa tambahan komentar teks di luar JSON:
 {
@@ -122,7 +165,7 @@ Keluarkan dalam format JSON yang murni dan valid sesuai skema berikut tanpa tamb
   "subjectCode": "MAT / IND / IPAS / dll",
   "grade": "${grade}",
   "academicYear": "2026/2027",
-  "timeLimitMinutes": ${Math.max(30, numStimulus * 10)},
+  "timeLimitMinutes": ${Math.max(25, totalTargetQuestions * 3)},
   "competencySummary": "Ringkasan kompetensi yang diuji dalam paket ini...",
   "stimulusGroups": [
     {
@@ -149,35 +192,6 @@ Keluarkan dalam format JSON yang murni dan valid sesuai skema berikut tanpa tamb
           ],
           "correctAnswer": "A",
           "explanation": "Pembahasan rinci langkah solusi..."
-        },
-        {
-          "number": 2,
-          "type": "pgk",
-          "competency": "Analisis data / ide pendukung",
-          "cognitiveLevel": "L2 (Penerapan)",
-          "prompt": "Pilihlah semua pernyataan yang benar (Jawaban lebih dari satu):",
-          "options": [
-            {"key": "A", "text": "Pernyataan A"},
-            {"key": "B", "text": "Pernyataan B"},
-            {"key": "C", "text": "Pernyataan C"},
-            {"key": "D", "text": "Pernyataan D"}
-          ],
-          "correctAnswer": ["A", "C"],
-          "explanation": "Pembahasan mengapa A dan C benar..."
-        },
-        {
-          "number": 3,
-          "type": "bs",
-          "competency": "Evaluasi dan refleksi / Menarik kesimpulan",
-          "cognitiveLevel": "L3 (Penalaran)",
-          "prompt": "Tentukan kebenaran dari setiap pernyataan berikut berdasarkan informasi di atas!",
-          "statements": [
-            {"id": "s1", "text": "Pernyataan 1...", "answer": "Benar"},
-            {"id": "s2", "text": "Pernyataan 2...", "answer": "Salah"},
-            {"id": "s3", "text": "Pernyataan 3...", "answer": "Benar"}
-          ],
-          "correctAnswer": {"s1": "Benar", "s2": "Salah", "s3": "Benar"},
-          "explanation": "Pembahasan analisis kebenaran tiap pernyataan..."
         }
       ]
     }
@@ -185,27 +199,109 @@ Keluarkan dalam format JSON yang murni dan valid sesuai skema berikut tanpa tamb
 }
 `;
 
-    const response = await ai.models.generateContent({
-      model: APP_CONFIG.geminiModel,
-      contents: prompt,
-      config: {
-        responseMimeType: 'application/json',
-      },
-    });
-
-    const rawText = response.text || '';
-    const parsedData = cleanJsonResponse(rawText);
+    const geminiResult = await generateWithGeminiFallback(prompt);
+    const parsedData = cleanJsonResponse(geminiResult.text);
 
     res.json({
       success: true,
       data: parsedData,
       generatedWithAI: true,
-      modelUsed: APP_CONFIG.geminiModel,
+      modelUsed: geminiResult.model,
     });
   } catch (error: any) {
     console.error('Error generating TKA assessment with Gemini API:', error);
     res.status(500).json({
       error: error?.message || 'Gagal menghasilkan naskah asesmen TKA dari Gemini API.',
+      details: error?.toString(),
+    });
+  }
+});
+
+// POST /api/transform-question (AI-assisted Question Type Converter)
+app.post('/api/transform-question', async (req: Request, res: Response): Promise<void> => {
+  const { question, targetType, stimulusContent = '', stimulusTitle = '' } = req.body;
+
+  if (!question || !targetType) {
+    res.status(400).json({ error: 'Data soal dan tipe target wajib diisi.' });
+    return;
+  }
+
+  if (!ai || !apiKey) {
+    res.status(503).json({
+      error: 'GEMINI_API_KEY belum terkonfigurasi di server environment.',
+      needsApiKey: true,
+    });
+    return;
+  }
+
+  try {
+    const prompt = `
+Bertindaklah sebagai Penyusun Asesmen Profesional Pusmendik Kemendikdasmen RI untuk platform "KELAS 5 JUARA - TKA GURU".
+Tugas Anda adalah MENGUBAH / MEROMBAK bentuk soal berikut dari tipe "${question.type || 'pg'}" menjadi tipe "${targetType}" dengan tetap menguji kompetensi yang sama dan berlandaskan stimulus berikut:
+
+[STIMULUS TERKAIT]:
+Judul: ${stimulusTitle || '-'}
+Isi: """${stimulusContent || '-'}"""
+
+[SOAL ASAL]:
+Nomor: ${question.number || 1}
+Kompetensi: ${question.competency || 'Kompetensi Pokok'}
+Level Kognitif: ${question.cognitiveLevel || 'L2 (Penerapan)'}
+Pertanyaan Asal: "${question.prompt || ''}"
+Opsi Asal: ${JSON.stringify(question.options || question.statements || question.matchingPairs || [])}
+Kunci Asal: ${JSON.stringify(question.correctAnswer || '')}
+Pembahasan Asal: "${question.explanation || ''}"
+
+[ATURAN PERUBAHAN KE TIPE "${targetType}"]:
+1. Jika target 'pg' (Pilihan Ganda Tunggal):
+   - Redaksi pertanyaan lugas dengan 1 jawaban benar.
+   - Sediakan "options": [{"key":"A","text":"..."},{"key":"B","text":"..."},{"key":"C","text":"..."},{"key":"D","text":"..."}].
+   - "correctAnswer": "A" (atau salah satu dari A, B, C, D).
+2. Jika target 'pgk' (Pilihan Ganda Kompleks):
+   - Redaksi prompt menyertakan instruksi: "Pilihlah semua jawaban yang benar (jawaban benar lebih dari satu):"
+   - Sediakan "options": 4 opsi [{"key":"A","text":"..."},{"key":"B","text":"..."},{"key":"C","text":"..."},{"key":"D","text":"..."}].
+   - "correctAnswer": array minimal 2 kunci yang benar, misal ["A", "C"].
+3. Jika target 'bs' (Benar/Salah) atau 'sts' (Sesuai/Tidak Sesuai):
+   - Redaksi prompt: "Tentukan kebenaran dari setiap pernyataan berikut berdasarkan informasi pada stimulus!"
+   - Sediakan "statements": 3-4 butir pernyataan [{"id":"s1","text":"..."},{"id":"s2","text":"..."},{"id":"s3","text":"..."}].
+   - "correctAnswer": objek kesesuaian, misal {"s1": "Benar", "s2": "Salah", "s3": "Benar"} (atau Sesuai/Tidak Sesuai).
+4. Jika target 'jodohkan' (Menjodohkan):
+   - Redaksi prompt: "Pasangkan setiap konsep atau pernyataan pada kolom kiri dengan pasangan yang tepat pada kolom kanan!"
+   - Sediakan "matchingPairs": 3-4 pasang [{"id":"m1","left":"Konsep / Premis A","right":"Pasangan Respon A"},{"id":"m2","left":"Konsep / Premis B","right":"Pasangan Respon B"},{"id":"m3","left":"Konsep / Premis C","right":"Pasangan Respon C"}].
+   - "correctAnswer": objek pencocokan, misal {"m1": "Pasangan Respon A", "m2": "Pasangan Respon B", "m3": "Pasangan Respon C"}.
+5. Jika target 'isian' (Isian Singkat):
+   - Redaksi prompt terarah dan menuntut jawaban berupa kata kunci atau nilai numerik pasti.
+   - "correctAnswer": string kunci jawaban ringkas.
+
+6. Seluruh kunci jawaban harus 100% tepat dan sediakan "explanation" langkah solusi yang mudah dipahami siswa kelas 5 SD.
+
+Keluarkan dalam format JSON murni:
+{
+  "number": ${question.number || 1},
+  "type": "${targetType}",
+  "competency": "${question.competency || 'Kompetensi Pokok'}",
+  "cognitiveLevel": "${question.cognitiveLevel || 'L2 (Penerapan)'}",
+  "prompt": "Redaksi pertanyaan baru...",
+  "options": [...],
+  "statements": [...],
+  "matchingPairs": [...],
+  "correctAnswer": ...,
+  "explanation": "Penjelasan solusi..."
+}
+`;
+
+    const geminiResult = await generateWithGeminiFallback(prompt);
+    const transformed = cleanJsonResponse(geminiResult.text);
+
+    res.json({
+      success: true,
+      question: transformed,
+      modelUsed: geminiResult.model,
+    });
+  } catch (error: any) {
+    console.error('Error transforming question with Gemini API:', error);
+    res.status(500).json({
+      error: error?.message || 'Gagal mengubah bentuk soal dengan AI.',
       details: error?.toString(),
     });
   }

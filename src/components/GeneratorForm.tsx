@@ -27,6 +27,8 @@ export const GeneratorForm: React.FC<GeneratorFormProps> = ({
 }) => {
   const [kisiKisi, setKisiKisi] = useState('');
   const [grade, setGrade] = useState('Kelas 5 SD/MI');
+  const [numQuestions, setNumQuestions] = useState<number>(12);
+  const [questionTypes, setQuestionTypes] = useState<string>('campuran');
   const [detectedSubjects, setDetectedSubjects] = useState<string[]>(['matematika']);
   const [isGenerating, setIsGenerating] = useState(false);
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
@@ -76,13 +78,18 @@ export const GeneratorForm: React.FC<GeneratorFormProps> = ({
           kisiKisi,
           firstSubj,
           grade,
-          (step) => setCurrentStepIndex(step)
+          (step) => setCurrentStepIndex(step),
+          numQuestions,
+          questionTypes
         );
 
         const pkg2 = await generateTKAPackageService(
           kisiKisi,
           secondSubj,
-          grade
+          grade,
+          undefined,
+          numQuestions,
+          questionTypes
         );
 
         setIsGenerating(false);
@@ -94,7 +101,9 @@ export const GeneratorForm: React.FC<GeneratorFormProps> = ({
           kisiKisi,
           primarySubj,
           grade,
-          (step) => setCurrentStepIndex(step)
+          (step) => setCurrentStepIndex(step),
+          numQuestions,
+          questionTypes
         );
 
         setIsGenerating(false);
@@ -209,6 +218,56 @@ export const GeneratorForm: React.FC<GeneratorFormProps> = ({
               </span>
             )}
           </div>
+        </div>
+      </div>
+
+      {/* Question Count & Question Type Configuration */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6 p-4 rounded-2xl bg-blue-50/60 border border-blue-200">
+        <div>
+          <label className="block text-xs font-bold text-slate-800 mb-1.5 uppercase tracking-wide flex items-center justify-between">
+            <span>🎯 Target Jumlah Soal:</span>
+            <span className="text-blue-700 font-extrabold">{numQuestions} Butir Soal</span>
+          </label>
+          <select
+            value={numQuestions}
+            disabled={isGenerating}
+            onChange={(e) => setNumQuestions(Number(e.target.value))}
+            className="w-full p-2.5 rounded-xl border border-slate-300 bg-white font-bold text-xs sm:text-sm text-slate-800 focus:ring-2 focus:ring-blue-600 focus:outline-none"
+          >
+            <option value={3}>3 Soal (1 Stimulus Ringkas)</option>
+            <option value={6}>6 Soal (2 Stimulus)</option>
+            <option value={9}>9 Soal (3 Stimulus)</option>
+            <option value={12}>12 Soal (4 Stimulus - Rekomendasi Cepat)</option>
+            <option value={15}>15 Soal (5 Stimulus)</option>
+            <option value={18}>18 Soal (6 Stimulus - Standar Penuh)</option>
+            <option value={24}>24 Soal (8 Stimulus)</option>
+            <option value={30}>30 Soal (10 Stimulus - Ujian Lengkap)</option>
+          </select>
+          <span className="text-[11px] text-slate-500 mt-1 block">
+            AI menyusun ~{Math.ceil(numQuestions / 3)} kelompok stimulus konteks nyata.
+          </span>
+        </div>
+
+        <div>
+          <label className="block text-xs font-bold text-slate-800 mb-1.5 uppercase tracking-wide">
+            📝 Bentuk / Jenis Soal yang Dibuat:
+          </label>
+          <select
+            value={questionTypes}
+            disabled={isGenerating}
+            onChange={(e) => setQuestionTypes(e.target.value)}
+            className="w-full p-2.5 rounded-xl border border-slate-300 bg-white font-bold text-xs sm:text-sm text-slate-800 focus:ring-2 focus:ring-blue-600 focus:outline-none"
+          >
+            <option value="campuran">🌟 Kombinasi Variatif (PG, PGK, B/S, Isian)</option>
+            <option value="pg">🔘 Pilihan Ganda Tunggal (Semua PG)</option>
+            <option value="pgk">☑️ Pilihan Ganda Kompleks (Jawaban &gt; 1)</option>
+            <option value="bs">⚖️ Pernyataan Benar / Salah</option>
+            <option value="jodohkan">🔗 Menjodohkan (Pasangan Premis)</option>
+            <option value="isian">✏️ Isian Singkat</option>
+          </select>
+          <span className="text-[11px] text-slate-500 mt-1 block">
+            Dapat dirubah menjadi bentuk lain sewaktu-waktu dengan AI di editor.
+          </span>
         </div>
       </div>
 

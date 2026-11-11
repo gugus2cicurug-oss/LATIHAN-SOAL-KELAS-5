@@ -1,6 +1,6 @@
-import { TKAPackage, StimulusGroup, QuestionItem, OptionItem, StatementItem } from '../data/defaultPackages';
+import { TKAPackage, StimulusGroup, QuestionItem, OptionItem, StatementItem, MatchingPairItem } from '../data/defaultPackages';
 
-export type { TKAPackage, StimulusGroup, QuestionItem, OptionItem, StatementItem };
+export type { TKAPackage, StimulusGroup, QuestionItem, OptionItem, StatementItem, MatchingPairItem };
 
 export interface RegisteredUser {
   username: string;

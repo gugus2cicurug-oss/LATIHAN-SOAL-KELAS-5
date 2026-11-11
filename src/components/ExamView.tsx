@@ -12,9 +12,10 @@ import {
   Grid, 
   X, 
   ArrowRight,
-  Maximize2
+  Shuffle,
+  HelpCircle
 } from 'lucide-react';
-import { TKAPackage, QuestionItem, StimulusGroup } from '../data/defaultPackages';
+import { TKAPackage, QuestionItem, StimulusGroup, MatchingPairItem } from '../data/defaultPackages';
 import { UserExamState } from '../types';
 
 interface ExamViewProps {
@@ -23,21 +24,43 @@ interface ExamViewProps {
   onExitExam: () => void;
 }
 
+interface ExamQuestionItem {
+  question: QuestionItem;
+  stimulus: StimulusGroup;
+  displayNumber: number; // 1..N randomized display number
+}
+
+// Fisher-Yates array shuffling algorithm
+function shuffleArray<T>(array: T[]): T[] {
+  const arr = [...array];
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
 export const ExamView: React.FC<ExamViewProps> = ({
   pkg,
   onSubmitExam,
   onExitExam
 }) => {
-  // Flatten all questions with their stimulus reference
-  const allQuestions = React.useMemo(() => {
+  // Flatten all questions and randomize their order for this student's exam session
+  const [shuffledQuestions] = useState<ExamQuestionItem[]>(() => {
     const list: { question: QuestionItem; stimulus: StimulusGroup }[] = [];
     pkg.stimulusGroups.forEach((sg) => {
       sg.questions.forEach((q) => {
         list.push({ question: q, stimulus: sg });
       });
     });
-    return list;
-  }, [pkg]);
+
+    const randomized = shuffleArray(list);
+    return randomized.map((item, idx) => ({
+      question: item.question,
+      stimulus: item.stimulus,
+      displayNumber: idx + 1
+    }));
+  });
 
   const [currentIndex, setCurrentIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<number, any>>({});
@@ -71,7 +94,7 @@ export const ExamView: React.FC<ExamViewProps> = ({
     return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
   };
 
-  const currentItem = allQuestions[currentIndex];
+  const currentItem = shuffledQuestions[currentIndex];
   const currentQ = currentItem?.question;
   const currentStimulus = currentItem?.stimulus;
 
@@ -117,6 +140,31 @@ export const ExamView: React.FC<ExamViewProps> = ({
     });
   };
 
+  const handleSelectMatching = (pairId: string, rightVal: string) => {
+    if (!currentQ) return;
+    setAnswers((prev) => {
+      const currentMap: Record<string, string> =
+        typeof prev[currentQ.number] === 'object' && prev[currentQ.number] !== null && !Array.isArray(prev[currentQ.number])
+          ? prev[currentQ.number]
+          : {};
+      return {
+        ...prev,
+        [currentQ.number]: {
+          ...currentMap,
+          [pairId]: rightVal
+        }
+      };
+    });
+  };
+
+  const handleInputIsian = (val: string) => {
+    if (!currentQ) return;
+    setAnswers((prev) => ({
+      ...prev,
+      [currentQ.number]: val
+    }));
+  };
+
   const handleToggleFlag = () => {
     if (!currentQ) return;
     setFlagged((prev) => ({
@@ -129,12 +177,15 @@ export const ExamView: React.FC<ExamViewProps> = ({
     const val = answers[qNum];
     if (val === undefined || val === null) return false;
     if (Array.isArray(val)) return val.length > 0;
-    if (typeof val === 'object') return Object.keys(val).length > 0;
+    if (typeof val === 'object') {
+      const keys = Object.keys(val);
+      return keys.length > 0 && Object.values(val).some(v => Boolean(v));
+    }
     return String(val).trim().length > 0;
   };
 
-  const answeredCount = allQuestions.filter((item) => isAnswered(item.question.number)).length;
-  const unansweredCount = allQuestions.length - answeredCount;
+  const answeredCount = shuffledQuestions.filter((item) => isAnswered(item.question.number)).length;
+  const unansweredCount = shuffledQuestions.length - answeredCount;
 
   const handleSubmit = () => {
     const timeSpent = (pkg.timeLimitMinutes * 60) - secondsRemaining;
@@ -147,10 +198,13 @@ export const ExamView: React.FC<ExamViewProps> = ({
   };
 
   if (!currentQ || !currentStimulus) {
-    return <div>Memuat soal ujian...</div>;
+    return <div className="p-12 text-center text-slate-600 font-bold">Memuat naskah latihan soal...</div>;
   }
 
   const isLowTime = secondsRemaining < 300; // less than 5 minutes
+
+  // For matching type, gather unique right-hand choices
+  const matchingChoices = (currentQ.matchingPairs || []).map(p => p.right);
 
   return (
     <div className="max-w-7xl mx-auto my-2 sm:my-6 px-2 sm:px-6 select-none no-print pb-20 lg:pb-8">
@@ -159,14 +213,19 @@ export const ExamView: React.FC<ExamViewProps> = ({
       <div className="bg-white rounded-2xl border border-slate-200 p-3 sm:p-4 mb-4 sm:mb-6 shadow-sm flex items-center justify-between gap-2">
         <div className="flex items-center gap-2 sm:gap-3">
           <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-blue-600 flex items-center justify-center text-white font-extrabold text-sm sm:text-base shadow shrink-0">
-            {pkg.subjectCode || 'TKA'}
+            {pkg.subjectCode || 'STS'}
           </div>
           <div>
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-1.5 flex-wrap">
               <span className="text-[10px] sm:text-xs font-bold px-2 py-0.5 rounded bg-blue-100 text-blue-800">
                 {pkg.subject}
               </span>
               <span className="text-[10px] sm:text-xs text-slate-500 font-semibold">{pkg.grade}</span>
+              {/* Anti-Cheating Random Badge */}
+              <span className="hidden sm:inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-100 text-purple-800 border border-purple-200">
+                <Shuffle className="w-3 h-3 text-purple-600" />
+                <span>Urutan Soal Diacak Otomatis</span>
+              </span>
             </div>
             <h2 className="text-xs sm:text-base font-bold text-slate-900 line-clamp-1">
               {pkg.title}
@@ -201,6 +260,16 @@ export const ExamView: React.FC<ExamViewProps> = ({
 
       {/* TAMPILAN KHUSUS HANDPHONE (TABS: BACA STIMULUS VS JAWAB SOAL) */}
       <div className="lg:hidden mb-3">
+        <div className="flex items-center justify-between mb-1.5 px-1">
+          <span className="text-[10px] font-bold text-purple-700 flex items-center gap-1">
+            <Shuffle className="w-3 h-3" />
+            <span>Mode Acak Anti-Contek Aktif</span>
+          </span>
+          <span className="text-[10px] text-slate-500 font-semibold">
+            Terjawab: {answeredCount}/{shuffledQuestions.length}
+          </span>
+        </div>
+
         <div className="flex bg-slate-200/80 p-1 rounded-xl">
           <button
             onClick={() => setMobileTab('stimulus')}
@@ -223,7 +292,7 @@ export const ExamView: React.FC<ExamViewProps> = ({
             }`}
           >
             <PenLine className="w-4 h-4 text-blue-600" />
-            <span>✍️ Lembar Jawab (No. {currentQ.number})</span>
+            <span>✍️ Lembar Jawab (No. {currentItem.displayNumber})</span>
           </button>
         </div>
 
@@ -234,10 +303,10 @@ export const ExamView: React.FC<ExamViewProps> = ({
             className="shrink-0 flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-bold bg-slate-100 text-slate-800 rounded-lg border border-slate-300"
           >
             <Grid className="w-3.5 h-3.5 text-blue-600" />
-            <span>Semua ({allQuestions.length})</span>
+            <span>Semua ({shuffledQuestions.length})</span>
           </button>
 
-          {allQuestions.map((item, idx) => {
+          {shuffledQuestions.map((item, idx) => {
             const qNum = item.question.number;
             const isCurrent = idx === currentIndex;
             const answered = isAnswered(qNum);
@@ -249,7 +318,7 @@ export const ExamView: React.FC<ExamViewProps> = ({
 
             return (
               <button
-                key={qNum}
+                key={item.displayNumber}
                 onClick={() => {
                   setCurrentIndex(idx);
                   setMobileTab('question');
@@ -258,7 +327,7 @@ export const ExamView: React.FC<ExamViewProps> = ({
                   isCurrent ? 'ring-2 ring-blue-500 ring-offset-1 scale-105' : ''
                 }`}
               >
-                {qNum}
+                {item.displayNumber}
               </button>
             );
           })}
@@ -278,7 +347,7 @@ export const ExamView: React.FC<ExamViewProps> = ({
               {currentStimulus.type}
             </span>
             <span className="text-[11px] sm:text-xs font-semibold text-slate-500">
-              Rujukan Soal {currentStimulus.questions[0]?.number} - {currentStimulus.questions[currentStimulus.questions.length - 1]?.number}
+              Rujukan untuk Soal Nomor {currentItem.displayNumber}
             </span>
           </div>
 
@@ -333,7 +402,7 @@ export const ExamView: React.FC<ExamViewProps> = ({
               onClick={() => setMobileTab('question')}
               className="w-full py-3 rounded-xl bg-blue-600 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-md active:scale-95"
             >
-              <span>Sudah Membaca? Lanjut Jawab Soal No. {currentQ.number}</span>
+              <span>Sudah Membaca? Lanjut Jawab Soal No. {currentItem.displayNumber}</span>
               <ArrowRight className="w-4 h-4" />
             </button>
           </div>
@@ -352,21 +421,23 @@ export const ExamView: React.FC<ExamViewProps> = ({
             <div className="flex items-center justify-between pb-3 mb-3 sm:mb-4 border-b border-slate-100">
               <div className="flex items-center gap-2">
                 <span className="font-extrabold text-base sm:text-lg text-blue-600">
-                  Nomor {currentQ.number}
+                  Nomor {currentItem.displayNumber}
                 </span>
-                <span className="text-xs text-slate-400">dari {allQuestions.length}</span>
+                <span className="text-xs text-slate-400">dari {shuffledQuestions.length}</span>
               </div>
 
               <span className="text-[10px] sm:text-xs font-bold px-2 py-0.5 rounded bg-slate-100 text-slate-700">
                 {currentQ.type === 'pg' ? 'Pilihan Ganda' :
                  currentQ.type === 'pgk' ? 'Pilihan Ganda Kompleks' :
                  currentQ.type === 'bs' ? 'Benar / Salah' :
-                 currentQ.type === 'sts' ? 'Sesuai / Tidak Sesuai' : 'Mendukung / Tidak'}
+                 currentQ.type === 'sts' ? 'Sesuai / Tidak Sesuai' :
+                 currentQ.type === 'jodohkan' ? 'Menjodohkan' :
+                 currentQ.type === 'isian' ? 'Isian Singkat' : 'Pertanyaan Standar'}
               </span>
             </div>
 
             {/* Prompt */}
-            <div className="text-xs sm:text-base font-semibold text-slate-900 leading-snug mb-4 sm:mb-5">
+            <div className="text-xs sm:text-base font-semibold text-slate-900 leading-snug mb-4 sm:mb-5 whitespace-pre-line">
               {currentQ.prompt}
             </div>
 
@@ -380,7 +451,7 @@ export const ExamView: React.FC<ExamViewProps> = ({
               <span>Lihat Teks Stimulus Soal Ini</span>
             </button>
 
-            {/* INPUT: Tipe PG (Single Choice) */}
+            {/* 1. INPUT: Tipe PG (Single Choice) */}
             {currentQ.type === 'pg' && currentQ.options && (
               <div className="space-y-2 sm:space-y-2.5">
                 {currentQ.options.map((opt) => {
@@ -410,7 +481,7 @@ export const ExamView: React.FC<ExamViewProps> = ({
               </div>
             )}
 
-            {/* INPUT: Tipe PGK (Complex Checkboxes) */}
+            {/* 2. INPUT: Tipe PGK (Complex Checkboxes) */}
             {currentQ.type === 'pgk' && currentQ.options && (
               <div className="space-y-2 sm:space-y-2.5">
                 <div className="text-[11px] font-bold text-blue-700 mb-1.5">
@@ -445,8 +516,8 @@ export const ExamView: React.FC<ExamViewProps> = ({
               </div>
             )}
 
-            {/* INPUT: Tipe Matrix (Benar/Salah, Sesuai/Tidak Sesuai) */}
-            {currentQ.statements && currentQ.statements.length > 0 && (
+            {/* 3. INPUT: Tipe Matrix (Benar/Salah, Sesuai/Tidak Sesuai) */}
+            {(currentQ.type === 'bs' || currentQ.type === 'sts' || currentQ.statements) && currentQ.statements && currentQ.statements.length > 0 && (
               <div className="overflow-x-auto rounded-xl border border-slate-200">
                 <table className="w-full text-[11px] sm:text-xs border-collapse min-w-[260px]">
                   <thead>
@@ -476,7 +547,7 @@ export const ExamView: React.FC<ExamViewProps> = ({
                               name={`matrix-${currentQ.number}-${stmt.id}`}
                               checked={choice === firstVal}
                               onChange={() => handleSelectMatrix(stmt.id, firstVal)}
-                              className="text-blue-600 focus:ring-blue-500 w-4 h-4"
+                              className="text-blue-600 focus:ring-blue-500 w-4 h-4 cursor-pointer"
                             />
                           </td>
                           <td className="p-2 sm:p-2.5 text-center bg-slate-50/40">
@@ -485,7 +556,7 @@ export const ExamView: React.FC<ExamViewProps> = ({
                               name={`matrix-${currentQ.number}-${stmt.id}`}
                               checked={choice === secondVal}
                               onChange={() => handleSelectMatrix(stmt.id, secondVal)}
-                              className="text-blue-600 focus:ring-blue-500 w-4 h-4"
+                              className="text-blue-600 focus:ring-blue-500 w-4 h-4 cursor-pointer"
                             />
                           </td>
                         </tr>
@@ -493,6 +564,67 @@ export const ExamView: React.FC<ExamViewProps> = ({
                     })}
                   </tbody>
                 </table>
+              </div>
+            )}
+
+            {/* 4. INPUT: Tipe Menjodohkan (Jodohkan) */}
+            {currentQ.type === 'jodohkan' && currentQ.matchingPairs && (
+              <div className="space-y-3 pt-1">
+                <div className="text-[11px] font-bold text-purple-800 bg-purple-50 p-2.5 rounded-xl border border-purple-200">
+                  🔗 Pasangkan konsep kolom kiri dengan memilih jawaban yang tepat pada dropdown kolom kanan:
+                </div>
+
+                <div className="space-y-2.5">
+                  {currentQ.matchingPairs.map((pair, pIdx) => {
+                    const userMap = answers[currentQ.number] || {};
+                    const selectedVal = userMap[pair.id] || '';
+
+                    return (
+                      <div key={pair.id} className="p-3 rounded-xl border border-slate-200 bg-slate-50/70 space-y-2">
+                        <div className="flex items-center gap-2">
+                          <span className="w-5 h-5 rounded-full bg-purple-600 text-white font-bold text-[10px] flex items-center justify-center shrink-0">
+                            {pIdx + 1}
+                          </span>
+                          <span className="font-semibold text-xs sm:text-sm text-slate-800">{pair.left}</span>
+                        </div>
+
+                        <div className="pl-7">
+                          <select
+                            value={selectedVal}
+                            onChange={(e) => handleSelectMatching(pair.id, e.target.value)}
+                            className="w-full p-2 rounded-lg border border-purple-300 bg-white text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-purple-500"
+                          >
+                            <option value="">-- Pilih Pasangan Jawaban --</option>
+                            {matchingChoices.map((choiceText, cIdx) => (
+                              <option key={cIdx} value={choiceText}>
+                                {choiceText}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* 5. INPUT: Tipe Isian Singkat */}
+            {currentQ.type === 'isian' && (
+              <div className="space-y-2 pt-1">
+                <label className="block text-xs font-bold text-slate-700">
+                  Tuliskan Jawaban Singkat Anda:
+                </label>
+                <input
+                  type="text"
+                  placeholder="Ketik jawaban singkat di sini..."
+                  value={answers[currentQ.number] || ''}
+                  onChange={(e) => handleInputIsian(e.target.value)}
+                  className="w-full p-3 rounded-xl border border-slate-300 text-sm font-semibold text-slate-900 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 shadow-xs"
+                />
+                <span className="text-[11px] text-slate-500 block">
+                  * Ketikkan jawaban ringkas tanpa tanda baca berlebih.
+                </span>
               </div>
             )}
 
@@ -520,8 +652,8 @@ export const ExamView: React.FC<ExamViewProps> = ({
                 </button>
 
                 <button
-                  disabled={currentIndex === allQuestions.length - 1}
-                  onClick={() => setCurrentIndex((prev) => Math.min(allQuestions.length - 1, prev + 1))}
+                  disabled={currentIndex === shuffledQuestions.length - 1}
+                  onClick={() => setCurrentIndex((prev) => Math.min(shuffledQuestions.length - 1, prev + 1))}
                   className="px-3.5 py-2 text-xs font-bold text-white bg-blue-600 rounded-xl hover:bg-blue-700 disabled:opacity-40 transition-colors shadow-sm flex items-center gap-1"
                 >
                   <span>Berikutnya</span>
@@ -534,11 +666,16 @@ export const ExamView: React.FC<ExamViewProps> = ({
 
           {/* Desktop Question Grid Navigator Card */}
           <div className="hidden lg:block bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
-            <div className="flex items-center justify-between mb-3 text-xs">
+            <div className="flex items-center justify-between mb-2 text-xs">
               <span className="font-bold text-slate-800">Daftar Nomor Soal</span>
               <span className="font-semibold text-blue-700">
-                Terjawab: {answeredCount} / {allQuestions.length}
+                Terjawab: {answeredCount} / {shuffledQuestions.length}
               </span>
+            </div>
+
+            <div className="text-[10px] text-purple-700 font-semibold mb-3 flex items-center gap-1">
+              <Shuffle className="w-3 h-3" />
+              <span>Urutan disajikan secara acak untuk setiap siswa</span>
             </div>
 
             {/* Legend */}
@@ -559,7 +696,7 @@ export const ExamView: React.FC<ExamViewProps> = ({
 
             {/* Grid buttons */}
             <div className="grid grid-cols-6 sm:grid-cols-8 gap-2">
-              {allQuestions.map((item, idx) => {
+              {shuffledQuestions.map((item, idx) => {
                 const qNum = item.question.number;
                 const isCurrent = idx === currentIndex;
                 const answered = isAnswered(qNum);
@@ -571,13 +708,13 @@ export const ExamView: React.FC<ExamViewProps> = ({
 
                 return (
                   <button
-                    key={qNum}
+                    key={item.displayNumber}
                     onClick={() => setCurrentIndex(idx)}
                     className={`h-9 rounded-lg font-bold text-xs border flex items-center justify-center transition-all ${bgClass} ${
                       isCurrent ? 'ring-2 ring-blue-500 ring-offset-2 scale-105' : 'hover:opacity-90'
                     }`}
                   >
-                    {qNum}
+                    {item.displayNumber}
                   </button>
                 );
               })}
@@ -595,7 +732,7 @@ export const ExamView: React.FC<ExamViewProps> = ({
             <div className="flex items-center justify-between pb-3 mb-3 border-b border-slate-100">
               <div>
                 <h4 className="font-extrabold text-sm text-slate-900">Navigasi Nomor Soal</h4>
-                <span className="text-[11px] text-blue-600 font-bold">Terjawab: {answeredCount} dari {allQuestions.length}</span>
+                <span className="text-[11px] text-blue-600 font-bold">Terjawab: {answeredCount} dari {shuffledQuestions.length}</span>
               </div>
               <button
                 onClick={() => setIsMobileGridOpen(false)}
@@ -606,7 +743,7 @@ export const ExamView: React.FC<ExamViewProps> = ({
             </div>
 
             <div className="grid grid-cols-5 gap-2 overflow-y-auto p-1 flex-1">
-              {allQuestions.map((item, idx) => {
+              {shuffledQuestions.map((item, idx) => {
                 const qNum = item.question.number;
                 const isCurrent = idx === currentIndex;
                 const answered = isAnswered(qNum);
@@ -618,7 +755,7 @@ export const ExamView: React.FC<ExamViewProps> = ({
 
                 return (
                   <button
-                    key={qNum}
+                    key={item.displayNumber}
                     onClick={() => {
                       setCurrentIndex(idx);
                       setIsMobileGridOpen(false);
@@ -628,7 +765,7 @@ export const ExamView: React.FC<ExamViewProps> = ({
                       isCurrent ? 'ring-2 ring-blue-500 ring-offset-1' : ''
                     }`}
                   >
-                    {qNum}
+                    {item.displayNumber}
                   </button>
                 );
               })}
@@ -653,7 +790,7 @@ export const ExamView: React.FC<ExamViewProps> = ({
             </h3>
             
             <p className="text-xs sm:text-sm text-slate-600 mb-4 leading-relaxed">
-              Anda telah menjawab <b>{answeredCount}</b> dari total <b>{allQuestions.length}</b> butir soal.
+              Anda telah menjawab <b>{answeredCount}</b> dari total <b>{shuffledQuestions.length}</b> butir soal.
               {unansweredCount > 0 && (
                 <span className="block mt-2 text-amber-700 bg-amber-50 p-2.5 rounded-lg border border-amber-200 text-xs font-semibold">
                   ⚠️ Peringatan: Masih terdapat {unansweredCount} butir soal yang belum dijawab!
@@ -685,3 +822,4 @@ export const ExamView: React.FC<ExamViewProps> = ({
     </div>
   );
 };
+

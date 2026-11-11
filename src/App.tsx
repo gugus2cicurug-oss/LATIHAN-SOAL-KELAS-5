@@ -200,6 +200,36 @@ export default function App() {
             });
             isCorrect = allMatch;
           }
+        } else if (q.type === 'jodohkan' || q.matchingPairs) {
+          if (typeof userAns === 'object' && userAns !== null && !Array.isArray(userAns)) {
+            let allMatch = true;
+            const userAnsMap = userAns as Record<string, string>;
+            const targetMap: Record<string, string> = {};
+            if (typeof q.correctAnswer === 'object' && q.correctAnswer !== null && !Array.isArray(q.correctAnswer)) {
+              Object.assign(targetMap, q.correctAnswer);
+            } else if (q.matchingPairs) {
+              q.matchingPairs.forEach(p => {
+                targetMap[p.id] = p.right;
+              });
+            }
+            const keys = Object.keys(targetMap);
+            if (keys.length === 0) {
+              allMatch = false;
+            } else {
+              keys.forEach((pairKey) => {
+                if (String(userAnsMap[pairKey] || '').trim().toLowerCase() !== String(targetMap[pairKey] || '').trim().toLowerCase()) {
+                  allMatch = false;
+                }
+              });
+            }
+            isCorrect = allMatch;
+          }
+        } else if (q.type === 'isian') {
+          if (userAns !== undefined && userAns !== null) {
+            const cleanUser = String(userAns).trim().toLowerCase();
+            const cleanKey = String(q.correctAnswer || '').trim().toLowerCase();
+            isCorrect = cleanUser.length > 0 && cleanUser === cleanKey;
+          }
         }
 
         if (isCorrect) correctCount++;

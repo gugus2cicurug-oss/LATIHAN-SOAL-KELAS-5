@@ -589,8 +589,10 @@ export const ResultView: React.FC<ResultViewProps> = ({
                     </span>
                     <strong className={isCorrect ? 'text-emerald-700 font-extrabold' : 'text-rose-700 font-extrabold'}>
                       {item.userAnswer !== undefined && item.userAnswer !== null
-                        ? typeof item.userAnswer === 'object'
-                          ? JSON.stringify(item.userAnswer)
+                        ? Array.isArray(item.userAnswer)
+                          ? item.userAnswer.join(', ')
+                          : typeof item.userAnswer === 'object'
+                          ? Object.entries(item.userAnswer).map(([k, v]) => `${k} ➜ ${v}`).join('; ')
                           : String(item.userAnswer)
                         : '(Tidak Dijawab / Kosong)'}
                     </strong>
@@ -601,8 +603,10 @@ export const ResultView: React.FC<ResultViewProps> = ({
                       Kunci Jawaban Resmi:
                     </span>
                     <strong className="text-blue-700 font-extrabold">
-                      {typeof q.correctAnswer === 'object'
-                        ? JSON.stringify(q.correctAnswer)
+                      {Array.isArray(q.correctAnswer)
+                        ? q.correctAnswer.join(', ')
+                        : typeof q.correctAnswer === 'object' && q.correctAnswer !== null
+                        ? Object.entries(q.correctAnswer).map(([k, v]) => `${k} ➜ ${v}`).join('; ')
                         : String(q.correctAnswer)}
                     </strong>
                   </div>

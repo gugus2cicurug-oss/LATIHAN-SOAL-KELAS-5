@@ -65,7 +65,9 @@ export async function generateTKAPackageService(
   kisiKisi: string,
   subjectOverride?: string,
   grade: string = 'Kelas 5 SD/MI',
-  onProgress?: (stepIndex: number) => void
+  onProgress?: (stepIndex: number) => void,
+  numQuestions: number = 12,
+  questionTypes: string = 'campuran'
 ): Promise<TKAPackage> {
   // Simulate progress step updates
   if (onProgress) onProgress(0); // step 1
@@ -80,7 +82,8 @@ export async function generateTKAPackageService(
         kisiKisi,
         subjectName: subjectOverride,
         grade,
-        numStimulus: 4 // yields 12 questions (4 stimuli * 3 questions each) for rapid, high-quality generation
+        numQuestions,
+        questionTypes
       })
     });
 
