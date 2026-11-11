@@ -73,6 +73,35 @@ Mendukung 9 mata pelajaran lengkap:
 
 ---
 
+## 🐙 Panduan Deployment di GitHub Pages (Solusi Halaman Tidak Kosong)
+
+Penyebab umum halaman menjadi **kosong / blank putih** saat dideploy ke GitHub Pages adalah path aset default (`/assets/...`) yang mencari file di root domain (`username.github.io/assets/`), bukan di folder repositori (`username.github.io/nama-repo/assets/`).
+
+Aplikasi ini **telah dikonfigurasi secara optimal** agar tidak mengalami blank putih:
+1. `base: './'` telah diaktifkan di `vite.config.ts` sehingga semua berkas CSS & JS dimuat dengan path relatif.
+2. File `public/.nojekyll` disertakan untuk mencegah GitHub memfilter aset Vite.
+3. File `public/404.html` disertakan sebagai fallback SPA saat halaman di-refresh.
+4. Workflow otomatis **GitHub Actions** telah disediakan di `.github/workflows/deploy.yml`.
+
+### Cara Deploy Otomatis via GitHub Actions (Rekomendasi):
+1. Masuk ke repositori Anda di GitHub.
+2. Buka tab **Settings** -> pilih menu **Pages** di bilah samping kiri.
+3. Pada bagian **Build and deployment**:
+   - Di menu dropdown **Source**, ubah dari *Deploy from a branch* menjadi **GitHub Actions**.
+4. Lakukan `git push` ke branch `main` atau `master`.
+5. GitHub Actions akan otomatis menjalankan build dan menerbitkan website Anda dalam 1-2 menit!
+6. Buka URL GitHub Pages Anda (misal `https://gugus2cicurug.github.io/kelas-5-juara/`), halaman langsung muncul sempurna!
+
+### Cara Deploy Manual (Branch `gh-pages`):
+1. Jalankan build di komputer lokal:
+   ```bash
+   npm run build
+   ```
+2. Isi folder `dist` adalah hasil build siap pakai (lengkap dengan `.nojekyll`, `404.html`, dan `index.html`).
+3. Deploy isi folder `dist` ke branch `gh-pages` (atau ke folder `/docs` di branch main) sesuai pengaturan GitHub Pages Anda.
+
+---
+
 ## 🌐 Panduan Deployment di cPanel (Satelitweb / Cloud Hosting)
 
 Terdapat 2 metode deployment di cPanel Satelitweb:

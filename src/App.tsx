@@ -261,7 +261,7 @@ export default function App() {
   // Download Standalone HTML
   const handleDownloadStandalone = () => {
     const link = document.createElement('a');
-    link.href = '/TKA_GURU.html';
+    link.href = './TKA_GURU.html';
     link.download = 'TKA_GURU.html';
     document.body.appendChild(link);
     link.click();
