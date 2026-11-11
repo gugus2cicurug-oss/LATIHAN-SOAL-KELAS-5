@@ -1,0 +1,6 @@
+{
+  "name": "KELAS 5 JUARA - TKA Guru",
+  "description": "Platform AI Generator Soal Asesmen TKA Pusmendik Kemendikdasmen dan Simulasi Ujian Interaktif untuk Guru & Siswa SD/MI",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
