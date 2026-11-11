@@ -1,4 +1,3 @@
-import React from 'react';
 import { 
   FileText, 
   PenTool, 
@@ -10,7 +9,9 @@ import {
   Sliders, 
   BookOpen, 
   ShieldCheck, 
-  User 
+  User,
+  Users,
+  FolderKanban
 } from 'lucide-react';
 import { RegisteredUser } from '../types';
 
@@ -20,6 +21,7 @@ interface NavbarProps {
   openAiDrawer: () => void;
   openLoginModal: () => void;
   openUploadModal: () => void;
+  openStudentManager?: () => void;
   currentUser: RegisteredUser | null;
   hasActivePackage: boolean;
   onDownloadStandalone: () => void;
@@ -31,6 +33,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   openAiDrawer,
   openLoginModal,
   openUploadModal,
+  openStudentManager,
   currentUser,
   hasActivePackage
 }) => {
@@ -95,6 +98,17 @@ export const Navbar: React.FC<NavbarProps> = ({
                   <span>Input Kisi-Kisi AI</span>
                 </button>
 
+                {openStudentManager && (
+                  <button
+                    onClick={openStudentManager}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg text-slate-600 hover:text-slate-900 hover:bg-slate-200/60 transition-colors"
+                    title="Kelola data siswa, NISN, dan kelas"
+                  >
+                    <Users className="w-3.5 h-3.5 text-blue-600" />
+                    <span>Data Siswa & NISN</span>
+                  </button>
+                )}
+
                 {hasActivePackage && (
                   <button
                     onClick={() => setActiveView('naskah')}
@@ -158,6 +172,20 @@ export const Navbar: React.FC<NavbarProps> = ({
           {/* Action Buttons Right Header */}
           <div className="flex items-center gap-1.5 sm:gap-2.5">
             
+            {/* Google Drive Folder link for Teachers */}
+            {isAdminGuru && (
+              <a
+                href="https://drive.google.com/drive/folders/1LkmjVSMEN8SelpFDj59ek0iDZD0rnfAO?usp=sharing"
+                target="_blank"
+                rel="noreferrer"
+                className="hidden xl:flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-300 rounded-xl transition-all shadow-xs"
+                title="Buka Folder Google Drive resmi"
+              >
+                <FolderKanban className="w-3.5 h-3.5 text-amber-600" />
+                <span>Drive Soal</span>
+              </a>
+            )}
+
             {/* Hanya Guru yang melihat tombol Upload Naskah */}
             {isAdminGuru && (
               <button

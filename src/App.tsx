@@ -26,6 +26,9 @@ import { getCurrentUser, addExamHistoryToCurrentUser, isUserAdminGuru } from './
 import { getSiteSettings, saveSiteSettings } from './utils/settings';
 import { AdminWebControls } from './components/AdminWebControls';
 import { StudentHomeView } from './components/StudentHomeView';
+import { StudentManagerModal } from './components/StudentManagerModal';
+import { recordExamResultForStudent } from './utils/studentStore';
+import { syncPackagesToDrive, signInWithGoogleAccount, isGoogleAuthenticated } from './utils/googleWorkspace';
 
 import { 
   Plus, 
@@ -52,6 +55,7 @@ export default function App() {
   const [isAiDrawerOpen, setIsAiDrawerOpen] = useState(false);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
+  const [isStudentManagerOpen, setIsStudentManagerOpen] = useState(false);
   const [hasApiKey, setHasApiKey] = useState(false);
   
   const [currentUser, setCurrentUser] = useState<RegisteredUser | null>(null);
@@ -251,11 +255,44 @@ export default function App() {
       if (updatedUser) {
         setCurrentUser(updatedUser);
       }
+      if (currentUser.role === 'siswa' && currentUser.nisn) {
+        recordExamResultForStudent(currentUser.nisn, {
+          packageId: activePackage.id,
+          packageTitle: activePackage.title,
+          subject: activePackage.subject,
+          score,
+          gradeCategory
+        });
+      }
     }
 
     setExamEvaluation(evaluation);
     setActiveView('result');
     window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  // Sync all assessment packages to Google Drive folder
+  const handleSyncPackagesToDrive = async () => {
+    const userConfirmed = window.confirm(
+      `Simpan seluruh naskah soal (${packages.length} paket) ke Google Drive folder resmi?\n\nFolder: https://drive.google.com/drive/folders/1LkmjVSMEN8SelpFDj59ek0iDZD0rnfAO`
+    );
+    if (!userConfirmed) return;
+
+    try {
+      if (!isGoogleAuthenticated()) {
+        const res = await signInWithGoogleAccount();
+        if (!res) {
+          alert('Login Google Akun dibatalkan.');
+          return;
+        }
+      }
+      const syncResult = await syncPackagesToDrive(packages);
+      if (syncResult && syncResult.fileId) {
+        alert(`✅ Berhasil menyimpan naskah soal ke Google Drive!\nNama file: soal_tka_kelas5.json\nID Berkas: ${syncResult.fileId}\nPeriksa folder Drive resmi.`);
+      }
+    } catch (err: any) {
+      alert(`Gagal koneksi Google Drive: ${err?.message || err}`);
+    }
   };
 
   // Download Standalone HTML
@@ -271,13 +308,14 @@ export default function App() {
   return (
     <div className="min-h-screen flex flex-col bg-slate-50 text-slate-800 font-sans pb-16 lg:pb-0">
       
-      {/* Navbar with Login & Upload buttons */}
+      {/* Navbar with Login, Student Manager & Upload buttons */}
       <Navbar
         activeView={activeView}
         setActiveView={setActiveView}
         openAiDrawer={() => setIsAiDrawerOpen(true)}
         openLoginModal={() => setIsLoginModalOpen(true)}
         openUploadModal={() => setIsUploadModalOpen(true)}
+        openStudentManager={() => setIsStudentManagerOpen(true)}
         currentUser={currentUser}
         hasActivePackage={!!activePackage}
         onDownloadStandalone={handleDownloadStandalone}
@@ -309,6 +347,7 @@ export default function App() {
             <StudentHomeView
               packages={packages}
               siteSettings={siteSettings}
+              currentUser={currentUser}
               onStartExam={(pkg) => {
                 setActivePackage(pkg);
                 setActiveView('exam');
@@ -389,6 +428,8 @@ export default function App() {
                   setPreviewAsStudent(true);
                   window.scrollTo({ top: 0, behavior: 'smooth' });
                 }}
+                onOpenStudentManager={() => setIsStudentManagerOpen(true)}
+                onSyncDrive={handleSyncPackagesToDrive}
               />
 
               {/* Hero Section */}
@@ -559,7 +600,7 @@ export default function App() {
                 Akses Khusus Admin Guru
               </h2>
               <p className="text-xs sm:text-sm text-slate-600 leading-relaxed max-w-md mx-auto">
-                Pembuatan naskah latihan baru berbasis AI dan analisis kisi-kisi hanya dapat dilakukan oleh Admin Guru terdaftar (misal: akun <strong className="text-slate-900 font-bold">@gugus2cicurug</strong> atau <strong className="text-slate-900 font-bold">@guru_5a</strong>).
+                Pembuatan naskah latihan baru berbasis AI dan analisis kisi-kisi hanya dapat dilakukan oleh Admin Guru terdaftar (misal: akun <strong className="text-slate-900 font-bold">@sdn1purwasari</strong> atau <strong className="text-slate-900 font-bold">@guru_5a</strong>).
               </p>
               <p className="text-xs text-slate-500">
                 Pengunjung dan siswa dipersilakan mengerjakan paket ujian yang telah dipublikasikan guru di beranda depan.
@@ -639,6 +680,13 @@ export default function App() {
         onClose={() => setIsLoginModalOpen(false)}
         currentUser={currentUser}
         onUserChange={(newUser) => setCurrentUser(newUser)}
+        onOpenStudentManager={() => setIsStudentManagerOpen(true)}
+      />
+
+      {/* Student & NISN Management Modal for Admin Guru */}
+      <StudentManagerModal
+        isOpen={isStudentManagerOpen}
+        onClose={() => setIsStudentManagerOpen(false)}
       />
 
       {/* Upload Naskah Modal */}

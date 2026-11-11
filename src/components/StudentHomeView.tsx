@@ -13,7 +13,7 @@ import {
   LogIn
 } from 'lucide-react';
 import { TKAPackage } from '../data/defaultPackages';
-import { SiteSettings } from '../types';
+import { SiteSettings, RegisteredUser } from '../types';
 
 interface StudentHomeViewProps {
   packages: TKAPackage[];
@@ -21,6 +21,7 @@ interface StudentHomeViewProps {
   onStartExam: (pkg: TKAPackage) => void;
   onViewNaskah: (pkg: TKAPackage) => void;
   onOpenLogin: () => void;
+  currentUser?: RegisteredUser | null;
 }
 
 export const StudentHomeView: React.FC<StudentHomeViewProps> = ({
@@ -28,7 +29,8 @@ export const StudentHomeView: React.FC<StudentHomeViewProps> = ({
   siteSettings,
   onStartExam,
   onViewNaskah,
-  onOpenLogin
+  onOpenLogin,
+  currentUser
 }) => {
   const [selectedSubject, setSelectedSubject] = useState<string>('all');
 
@@ -82,18 +84,58 @@ export const StudentHomeView: React.FC<StudentHomeViewProps> = ({
             {siteSettings.heroSubtitle}
           </p>
 
-          <div className="p-3 rounded-xl bg-white/10 border border-white/20 text-xs sm:text-sm flex items-center justify-between gap-3 max-w-xl">
-            <div className="flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
-              <span className="font-semibold text-white">Status: Mode Pengunjung / Siswa Aktif</span>
+          <div className="p-3.5 sm:p-4 rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 text-xs sm:text-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3 max-w-2xl">
+            <div className="flex items-center gap-3">
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse shrink-0" />
+              {currentUser?.role === 'siswa' ? (
+                <div>
+                  <div className="font-extrabold text-white text-sm sm:text-base flex items-center gap-2">
+                    <span>{currentUser.displayName}</span>
+                    <span className="text-[11px] font-bold px-2 py-0.5 rounded-md bg-amber-400 text-amber-950">
+                      Kelas {currentUser.className || '5'}
+                    </span>
+                  </div>
+                  <div className="text-blue-200 text-xs mt-0.5 flex items-center gap-2">
+                    <span>NISN: <strong className="font-mono text-amber-300 font-bold tracking-wider">{currentUser.nisn || '-'}</strong></span>
+                    <span>•</span>
+                    <span>{currentUser.schoolName || siteSettings.schoolName}</span>
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  <span className="font-bold text-white block">Mode Pengunjung / Siswa Belum Login</span>
+                  <span className="text-blue-200 text-xs">Masukkan NISN agar hasil latihanmu tercatat oleh guru.</span>
+                </div>
+              )}
             </div>
-            <button
-              onClick={onOpenLogin}
-              className="inline-flex items-center gap-1 text-xs font-bold text-sky-200 hover:text-white underline"
-            >
-              <Lock className="w-3 h-3" />
-              <span>Login Guru</span>
-            </button>
+
+            <div className="flex items-center gap-2 self-end sm:self-auto shrink-0">
+              {currentUser?.role === 'siswa' ? (
+                <button
+                  onClick={onOpenLogin}
+                  className="px-3 py-1.5 rounded-xl bg-white/20 hover:bg-white/30 text-white text-xs font-bold transition-all border border-white/20 cursor-pointer"
+                >
+                  Ganti Akun Siswa
+                </button>
+              ) : (
+                <button
+                  onClick={onOpenLogin}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-amber-950 font-black text-xs shadow-md transition-all active:scale-95 cursor-pointer"
+                >
+                  <LogIn className="w-3.5 h-3.5" />
+                  <span>Masuk dengan NISN</span>
+                </button>
+              )}
+
+              <button
+                onClick={onOpenLogin}
+                className="inline-flex items-center gap-1 text-xs font-semibold text-blue-200 hover:text-white px-2 py-1 cursor-pointer"
+                title="Akses Admin Guru"
+              >
+                <Lock className="w-3 h-3" />
+                <span>Guru</span>
+              </button>
+            </div>
           </div>
 
         </div>

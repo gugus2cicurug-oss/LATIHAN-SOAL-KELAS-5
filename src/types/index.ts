@@ -8,6 +8,9 @@ export interface RegisteredUser {
   role: 'guru' | 'siswa' | 'admin';
   schoolName: string;
   avatar: string;
+  nisn?: string;
+  className?: string;
+  googleEmail?: string;
   examHistory?: {
     packageId: string;
     packageTitle: string;
@@ -16,6 +19,31 @@ export interface RegisteredUser {
     gradeCategory: string;
     completedAt: string;
   }[];
+}
+
+export interface StudentRecord {
+  nisn: string;
+  name: string;
+  className: string;
+  schoolName: string;
+  registeredAt: string;
+  examHistory?: {
+    packageId: string;
+    packageTitle: string;
+    subject: string;
+    score: number;
+    gradeCategory: string;
+    completedAt: string;
+  }[];
+}
+
+export interface GoogleDriveSyncConfig {
+  folderId: string;
+  folderUrl: string;
+  lastSyncedAt?: string;
+  autoSync: boolean;
+  sheetsId?: string;
+  sheetsUrl?: string;
 }
 
 export interface SiteSettings {
@@ -31,10 +59,10 @@ export interface SiteSettings {
 }
 
 export const DEFAULT_SITE_SETTINGS: SiteSettings = {
-  schoolName: 'Gugus 2 Cicurug - SD Negeri 1',
-  heroTitle: 'Simulasi Tes Kemampuan Akademik (TKA) SD/MI',
-  heroSubtitle: 'Selamat datang di portal latihan dan asesmen resmi Pusmendik Kemendikdasmen RI. Pilih paket soal yang tersedia di bawah dan kerjakan secara mandiri.',
-  announcement: '📢 PENGUMUMAN GURU: Soal latihan TKA Matematika dan Bahasa Indonesia resmi dibuka. Kerjakan dengan teliti dan jujur. Waktu pengerjaan sesuai alokasi tiap paket.',
+  schoolName: 'SDN 1 Purwasari',
+  heroTitle: 'Simulasi STS/ASAS siap menghadapi Sumatif untuk SD/MI',
+  heroSubtitle: 'Selamat datang di portal latihan dan asesmen resmi SD/MI. Pilih paket soal yang tersedia di bawah dan kerjakan secara mandiri.',
+  announcement: '📢 PENGUMUMAN GURU: Soal latihan STS/ASAS siap menghadapi Sumatif resmi dibuka. Kerjakan dengan teliti dan jujur. Waktu pengerjaan sesuai alokasi tiap paket.',
   showAnnouncement: true,
   allowGuestRetake: true,
   showAnswerExplanationToStudent: true,

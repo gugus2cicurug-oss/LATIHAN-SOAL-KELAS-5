@@ -30,6 +30,8 @@ interface AdminWebControlsProps {
   onStartCreate: () => void;
   onOpenUpload: () => void;
   onPreviewAsStudent: () => void;
+  onOpenStudentManager?: () => void;
+  onSyncDrive?: () => void;
 }
 
 export const AdminWebControls: React.FC<AdminWebControlsProps> = ({
@@ -40,7 +42,9 @@ export const AdminWebControls: React.FC<AdminWebControlsProps> = ({
   onOpenEditorForPackage,
   onStartCreate,
   onOpenUpload,
-  onPreviewAsStudent
+  onPreviewAsStudent,
+  onOpenStudentManager,
+  onSyncDrive
 }) => {
   const [activeTab, setActiveTab] = useState<'soal' | 'tampilan'>('soal');
   const [localSettings, setLocalSettings] = useState<SiteSettings>(siteSettings);
@@ -94,14 +98,44 @@ export const AdminWebControls: React.FC<AdminWebControlsProps> = ({
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {onOpenStudentManager && (
+            <button
+              onClick={onOpenStudentManager}
+              className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition-all shadow-sm cursor-pointer"
+              title="Kelola data nama siswa, NISN, dan kelas untuk login siswa"
+            >
+              <span>👥 Kelola Siswa & NISN</span>
+            </button>
+          )}
+
+          {onSyncDrive && (
+            <button
+              onClick={onSyncDrive}
+              className="flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-slate-700 bg-white border border-slate-300 hover:bg-slate-50 rounded-xl transition-colors shadow-xs cursor-pointer"
+              title="Simpan cadangan seluruh soal ke Google Drive folder"
+            >
+              <span>☁️ Simpan Soal ke Drive</span>
+            </button>
+          )}
+
+          <a
+            href="https://drive.google.com/drive/folders/1LkmjVSMEN8SelpFDj59ek0iDZD0rnfAO?usp=sharing"
+            target="_blank"
+            rel="noreferrer"
+            className="flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-300 rounded-xl transition-colors cursor-pointer"
+            title="Buka folder penyimpanan Google Drive resmi"
+          >
+            <span>📁 Folder Drive</span>
+          </a>
+
           <button
             onClick={onPreviewAsStudent}
-            className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-blue-700 bg-blue-50 border border-blue-200 rounded-xl hover:bg-blue-100 transition-colors shadow-xs"
+            className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-blue-700 bg-blue-50 border border-blue-200 rounded-xl hover:bg-blue-100 transition-colors shadow-xs cursor-pointer"
             title="Lihat persis bagaimana tampilan di mata siswa yang tidak login"
           >
             <Eye className="w-3.5 h-3.5 text-blue-600" />
-            <span>👁️ Pratinjau Tampilan Siswa</span>
+            <span>👁️ Pratinjau Siswa</span>
           </button>
         </div>
       </div>
@@ -280,7 +314,7 @@ export const AdminWebControls: React.FC<AdminWebControlsProps> = ({
 
           <div>
             <label className="block text-xs font-bold text-slate-700 uppercase tracking-wide mb-1">
-              Nama Sekolah / Gugus di Header Siswa:
+              Nama Sekolah di Header Siswa:
             </label>
             <input
               type="text"

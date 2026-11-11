@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import confetti from 'canvas-confetti';
 import { 
   Trophy, 
@@ -12,8 +12,25 @@ import {
   BookOpen, 
   Target,
   Sparkles,
-  BarChart3
+  BarChart3,
+  AlertTriangle,
+  TrendingDown,
+  TrendingUp,
+  HelpCircle,
+  Layers
 } from 'lucide-react';
+import {
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  Cell,
+  ReferenceLine
+} from 'recharts';
 import { TKAPackage } from '../data/defaultPackages';
 import { ExamEvaluation } from '../types';
 
@@ -32,6 +49,8 @@ export const ResultView: React.FC<ResultViewProps> = ({
   onViewNaskah,
   onGoDashboard
 }) => {
+  const [chartMode, setChartMode] = useState<'persentase' | 'soal'>('persentase');
+
   // Fire confetti if high score
   useEffect(() => {
     if (evaluation.score >= 70) {
@@ -60,6 +79,100 @@ export const ResultView: React.FC<ResultViewProps> = ({
     const m = Math.floor(seconds / 60);
     const s = seconds % 60;
     return `${m} Menit ${s} Detik`;
+  };
+
+  // Build chart dataset and competency diagnostics for teacher evaluation
+  const { chartData, weakCompetencies, strongCompetencies } = useMemo(() => {
+    const sourceMap: Record<string, { total: number; correct: number; questionNumbers: number[] }> = {};
+
+    // Group questions by competency from breakdown
+    evaluation.breakdown.forEach((item) => {
+      const comp = item.question.competency || 'Kompetensi Pokok';
+      if (!sourceMap[comp]) {
+        sourceMap[comp] = { total: 0, correct: 0, questionNumbers: [] };
+      }
+      sourceMap[comp].total++;
+      if (item.isCorrect) sourceMap[comp].correct++;
+      sourceMap[comp].questionNumbers.push(item.question.number);
+    });
+
+    // If breakdown was empty, fallback to evaluation.competencyStats
+    if (Object.keys(sourceMap).length === 0 && evaluation.competencyStats) {
+      Object.entries(evaluation.competencyStats).forEach(([comp, stat]) => {
+        sourceMap[comp] = { total: stat.total, correct: stat.correct, questionNumbers: [] };
+      });
+    }
+
+    const data = Object.entries(sourceMap).map(([compName, stat]) => {
+      const scorePct = stat.total > 0 ? Math.round((stat.correct / stat.total) * 100) : 0;
+      const isWeak = scorePct < 60;
+      const isStrong = scorePct >= 75;
+
+      return {
+        name: compName,
+        displayName: compName.length > 20 ? compName.substring(0, 18) + '…' : compName,
+        score: scorePct,
+        benar: stat.correct,
+        salah: Math.max(0, stat.total - stat.correct),
+        total: stat.total,
+        questionNumbers: stat.questionNumbers,
+        status: isStrong ? 'Mahir' : scorePct >= 60 ? 'Cukup' : 'Perlu Bimbingan',
+        fillColor: isStrong ? '#10b981' : scorePct >= 60 ? '#f59e0b' : '#ef4444'
+      };
+    });
+
+    const weak = data.filter((d) => d.score < 60);
+    const strong = data.filter((d) => d.score >= 75);
+
+    return { chartData: data, weakCompetencies: weak, strongCompetencies: strong };
+  }, [evaluation]);
+
+  // Custom Recharts Tooltip for in-depth teacher inspection
+  const CustomBarTooltip = ({ active, payload }: any) => {
+    if (active && payload && payload.length) {
+      const data = payload[0].payload;
+      return (
+        <div className="bg-slate-900 text-white p-3.5 rounded-2xl shadow-2xl border border-slate-700 text-xs max-w-xs space-y-1.5 z-50">
+          <p className="font-extrabold text-amber-300 text-sm leading-snug">{data.name}</p>
+          <div className="flex items-center justify-between border-b border-slate-800 pb-1 pt-1">
+            <span className="text-slate-400">Skor Penguasaan:</span>
+            <span className="font-black text-emerald-400 text-sm">{data.score}%</span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-slate-400">Jawaban Benar:</span>
+            <span className="font-bold text-white">{data.benar} dari {data.total} Butir</span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-slate-400">Jawaban Salah:</span>
+            <span className="font-bold text-rose-400">{data.salah} Butir</span>
+          </div>
+          <div className="flex items-center justify-between pt-1">
+            <span className="text-slate-400">Status Capaian:</span>
+            <span className={`font-bold px-2 py-0.5 rounded text-[10px] ${
+              data.score >= 75
+                ? 'bg-emerald-950 text-emerald-300 border border-emerald-800'
+                : data.score >= 60
+                ? 'bg-amber-950 text-amber-300 border border-amber-800'
+                : 'bg-rose-950 text-rose-300 border border-rose-800'
+            }`}>
+              {data.status}
+            </span>
+          </div>
+          {data.questionNumbers && data.questionNumbers.length > 0 && (
+            <div className="text-[11px] text-slate-300 pt-1">
+              Nomor Soal: <strong className="text-white font-mono">{data.questionNumbers.join(', ')}</strong>
+            </div>
+          )}
+          {data.score < 60 && (
+            <div className="text-[11px] text-rose-200 bg-rose-950/80 p-2 rounded-xl border border-rose-800/60 mt-1 flex items-start gap-1.5">
+              <AlertTriangle className="w-3.5 h-3.5 text-rose-400 shrink-0 mt-0.5" />
+              <span>Prioritas Remedial: Butuh penjelasan ulang dan bimbingan terarah guru.</span>
+            </div>
+          )}
+        </div>
+      );
+    }
+    return null;
   };
 
   return (
@@ -147,37 +260,254 @@ export const ResultView: React.FC<ResultViewProps> = ({
         </div>
       </div>
 
-      {/* Competency Mastery Breakdown */}
-      {Object.keys(evaluation.competencyStats).length > 0 && (
-        <div className="bg-white rounded-2xl border border-slate-200 p-6 sm:p-7 shadow-sm mb-8">
-          <div className="flex items-center gap-2 mb-4">
-            <BarChart3 className="w-5 h-5 text-blue-600" />
-            <h3 className="text-base sm:text-lg font-bold text-slate-900">
-              Analisis Performa Berdasarkan Indikator Materi
-            </h3>
+      {/* Competency Mastery & Recharts Visualization */}
+      {chartData.length > 0 && (
+        <div className="bg-white rounded-3xl border border-slate-200 p-5 sm:p-8 shadow-sm mb-8 space-y-6">
+          
+          {/* Header & Chart Mode Controls */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-slate-200 gap-3">
+            <div>
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-100 text-blue-800 text-xs font-bold mb-2">
+                <BarChart3 className="w-3.5 h-3.5 text-blue-600" />
+                <span>VISUALISASI DATA RECHARTS</span>
+              </div>
+              <h3 className="text-lg sm:text-xl font-extrabold text-slate-900 tracking-tight">
+                Grafik Skor Siswa Berdasarkan Kategori Kompetensi
+              </h3>
+              <p className="text-xs text-slate-600 mt-0.5">
+                Evaluasi tingkat pemahaman materi untuk mendeteksi kelemahan siswa dan menentukan prioritas remedial guru.
+              </p>
+            </div>
+
+            {/* Toggle Mode Button */}
+            <div className="flex items-center bg-slate-100 p-1 rounded-xl self-start sm:self-auto border border-slate-200">
+              <button
+                type="button"
+                onClick={() => setChartMode('persentase')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                  chartMode === 'persentase'
+                    ? 'bg-white text-blue-700 shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                📊 % Penguasaan
+              </button>
+              <button
+                type="button"
+                onClick={() => setChartMode('soal')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                  chartMode === 'soal'
+                    ? 'bg-white text-blue-700 shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                📋 Benar vs Salah
+              </button>
+            </div>
           </div>
 
-          <div className="space-y-3">
-            {Object.entries(evaluation.competencyStats).map(([compName, stat]) => {
-              const pct = Math.round((stat.correct / stat.total) * 100);
-              return (
-                <div key={compName} className="p-3 rounded-xl bg-slate-50 border border-slate-200">
+          {/* Recharts Bar Chart Container */}
+          <div className="w-full pt-2">
+            <div className="h-80 sm:h-96 w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                {chartMode === 'persentase' ? (
+                  <BarChart
+                    data={chartData}
+                    margin={{ top: 25, right: 20, left: -10, bottom: 45 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                    <XAxis
+                      dataKey="displayName"
+                      tick={{ fontSize: 11, fill: '#334155', fontWeight: 600 }}
+                      interval={0}
+                      angle={-15}
+                      textAnchor="end"
+                    />
+                    <YAxis
+                      domain={[0, 100]}
+                      tick={{ fontSize: 11, fill: '#64748b' }}
+                      unit="%"
+                    />
+                    <Tooltip content={<CustomBarTooltip />} />
+                    <ReferenceLine
+                      y={75}
+                      stroke="#2563eb"
+                      strokeDasharray="4 4"
+                      label={{
+                        value: 'Target KKM (75%)',
+                        position: 'insideTopRight',
+                        fill: '#1d4ed8',
+                        fontSize: 11,
+                        fontWeight: 700
+                      }}
+                    />
+                    <Bar dataKey="score" radius={[8, 8, 0, 0]} maxBarSize={50}>
+                      {chartData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.fillColor} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                ) : (
+                  <BarChart
+                    data={chartData}
+                    margin={{ top: 25, right: 20, left: -10, bottom: 45 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                    <XAxis
+                      dataKey="displayName"
+                      tick={{ fontSize: 11, fill: '#334155', fontWeight: 600 }}
+                      interval={0}
+                      angle={-15}
+                      textAnchor="end"
+                    />
+                    <YAxis
+                      tick={{ fontSize: 11, fill: '#64748b' }}
+                      allowDecimals={false}
+                    />
+                    <Tooltip content={<CustomBarTooltip />} />
+                    <Legend
+                      verticalAlign="top"
+                      wrapperStyle={{ paddingBottom: '12px', fontSize: '12px', fontWeight: 700 }}
+                    />
+                    <Bar dataKey="benar" name="Jawaban Benar" stackId="a" fill="#10b981" radius={[0, 0, 0, 0]} maxBarSize={50} />
+                    <Bar dataKey="salah" name="Jawaban Salah" stackId="a" fill="#ef4444" radius={[8, 8, 0, 0]} maxBarSize={50} />
+                  </BarChart>
+                )}
+              </ResponsiveContainer>
+            </div>
+
+            {/* Chart Legend / Color Indicator */}
+            <div className="flex flex-wrap items-center justify-center gap-4 pt-4 border-t border-slate-100 text-xs">
+              <div className="flex items-center gap-1.5">
+                <span className="w-3 h-3 rounded-md bg-emerald-500 shrink-0" />
+                <span className="text-slate-700 font-semibold">Mahir (≥ 75%)</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="w-3 h-3 rounded-md bg-amber-500 shrink-0" />
+                <span className="text-slate-700 font-semibold">Cukup (60% - 74%)</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="w-3 h-3 rounded-md bg-rose-500 shrink-0" />
+                <span className="text-slate-700 font-semibold">Perlu Bimbingan / Lemah (&lt; 60%)</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="w-3.5 border-t-2 border-dashed border-blue-600 shrink-0" />
+                <span className="text-blue-800 font-bold">Garis Target Standar (75%)</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Diagnostic Teacher Evaluation Highlights */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+            
+            {/* Weakness Detection Card */}
+            <div className="p-4 sm:p-5 rounded-2xl bg-rose-50/80 border border-rose-200 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-rose-900 font-black text-xs sm:text-sm">
+                  <TrendingDown className="w-4 h-4 text-rose-600" />
+                  <span>Kelemahan Siswa (Perlu Remedial)</span>
+                </div>
+                <span className="text-[11px] font-black px-2 py-0.5 rounded-full bg-rose-200/80 text-rose-900">
+                  {weakCompetencies.length} Kategori
+                </span>
+              </div>
+
+              {weakCompetencies.length === 0 ? (
+                <div className="p-3 bg-white/80 rounded-xl border border-rose-200 text-xs text-slate-700 flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span>Hebat! Tidak ditemukan indikator di bawah 60%. Siswa telah melampaui batas ambang minimum.</span>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {weakCompetencies.map((w) => (
+                    <div key={w.name} className="p-3 bg-white rounded-xl border border-rose-200 text-xs space-y-1">
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-slate-900 line-clamp-1">{w.name}</span>
+                        <span className="font-black text-rose-600 bg-rose-50 px-2 py-0.5 rounded border border-rose-200">
+                          {w.score}%
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-500">
+                        Capaian: <strong className="text-slate-800">{w.benar}</strong> dari {w.total} soal benar (salah {w.salah} butir).
+                      </p>
+                      {w.questionNumbers && w.questionNumbers.length > 0 && (
+                        <p className="text-[11px] text-rose-700 font-medium">
+                          Pelajari kembali pembahasan pada <strong className="font-mono">Soal #{w.questionNumbers.join(', #')}</strong>.
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Mastery & Strength Card */}
+            <div className="p-4 sm:p-5 rounded-2xl bg-emerald-50/80 border border-emerald-200 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-emerald-900 font-black text-xs sm:text-sm">
+                  <TrendingUp className="w-4 h-4 text-emerald-600" />
+                  <span>Kekuatan Siswa (Telah Dikuasai)</span>
+                </div>
+                <span className="text-[11px] font-black px-2 py-0.5 rounded-full bg-emerald-200/80 text-emerald-900">
+                  {strongCompetencies.length} Kategori
+                </span>
+              </div>
+
+              {strongCompetencies.length === 0 ? (
+                <div className="p-3 bg-white/80 rounded-xl border border-emerald-200 text-xs text-slate-700 flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                  <span>Belum ada indikator yang mencapai kategori Mahir (≥ 75%). Perlu latihan soal penguatan secara rutin.</span>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {strongCompetencies.map((s) => (
+                    <div key={s.name} className="p-3 bg-white rounded-xl border border-emerald-200 text-xs space-y-1">
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-slate-900 line-clamp-1">{s.name}</span>
+                        <span className="font-black text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                          {s.score}%
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-500">
+                        Capaian: <strong className="text-slate-800">{s.benar}</strong> dari {s.total} soal terjawab sempurna.
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+          </div>
+
+          {/* Detailed Progress Bars List */}
+          <div className="pt-2">
+            <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-3">
+              Rincian Capaian per Indikator Pembelajaran:
+            </h4>
+            <div className="space-y-2.5">
+              {chartData.map((d) => (
+                <div key={d.name} className="p-3 rounded-xl bg-slate-50 border border-slate-200">
                   <div className="flex justify-between items-center text-xs sm:text-sm mb-1.5">
-                    <span className="font-semibold text-slate-800 line-clamp-1">{compName}</span>
-                    <span className="font-bold text-blue-700 ml-2">{stat.correct} / {stat.total} Benar ({pct}%)</span>
+                    <span className="font-semibold text-slate-800 line-clamp-1">{d.name}</span>
+                    <span className={`font-bold ml-2 ${
+                      d.score >= 75 ? 'text-emerald-700' : d.score >= 60 ? 'text-amber-700' : 'text-rose-700'
+                    }`}>
+                      {d.benar} / {d.total} Benar ({d.score}%) • {d.status}
+                    </span>
                   </div>
                   <div className="w-full h-2 bg-slate-200 rounded-full overflow-hidden">
                     <div
-                      className={`h-full rounded-full ${
-                        pct >= 75 ? 'bg-emerald-500' : pct >= 50 ? 'bg-amber-500' : 'bg-rose-500'
+                      className={`h-full rounded-full transition-all duration-500 ${
+                        d.score >= 75 ? 'bg-emerald-500' : d.score >= 60 ? 'bg-amber-500' : 'bg-rose-500'
                       }`}
-                      style={{ width: `${pct}%` }}
+                      style={{ width: `${d.score}%` }}
                     />
                   </div>
                 </div>
-              );
-            })}
+              ))}
+            </div>
           </div>
+
         </div>
       )}
 

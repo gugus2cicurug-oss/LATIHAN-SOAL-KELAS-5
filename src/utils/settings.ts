@@ -7,7 +7,18 @@ export function getSiteSettings(): SiteSettings {
   try {
     const raw = localStorage.getItem(SETTINGS_STORAGE_KEY);
     if (raw) {
-      return { ...DEFAULT_SITE_SETTINGS, ...JSON.parse(raw) };
+      const parsed = JSON.parse(raw);
+      // Migrate previous schoolName and heroTitle if they contain old default texts
+      if (!parsed.schoolName || parsed.schoolName.toLowerCase().includes('gugus') || parsed.schoolName.toLowerCase().includes('cicurug')) {
+        parsed.schoolName = DEFAULT_SITE_SETTINGS.schoolName;
+      }
+      if (!parsed.heroTitle || parsed.heroTitle.toLowerCase().includes('kemampuan akademik')) {
+        parsed.heroTitle = DEFAULT_SITE_SETTINGS.heroTitle;
+      }
+      if (parsed.announcement && parsed.announcement.includes('TKA Matematika dan Bahasa Indonesia')) {
+        parsed.announcement = DEFAULT_SITE_SETTINGS.announcement;
+      }
+      return { ...DEFAULT_SITE_SETTINGS, ...parsed };
     }
   } catch (e) {
     console.error('Failed to load site settings:', e);
