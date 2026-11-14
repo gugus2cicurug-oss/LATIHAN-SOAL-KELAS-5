@@ -185,65 +185,73 @@ export const NaskahView: React.FC<NaskahViewProps> = ({
           {pkg.stimulusGroups.map((group, groupIdx) => {
             const firstNum = group.questions[0]?.number || 1;
             const lastNum = group.questions[group.questions.length - 1]?.number || 3;
+            const hasStimulus = group.hasStimulus !== false && !!group.content && group.content.trim().length > 0 && !group.title?.toLowerCase().includes('mandiri') && !group.title?.toLowerCase().includes('tanpa stimulus');
 
             return (
               <section key={group.stimulusId} className="space-y-6">
                 
-                {/* Stimulus Box (Bordered, authentic document style) */}
-                <div className="p-5 sm:p-6 rounded-xl bg-slate-50/80 border-2 border-slate-300 avoid-break print:bg-white print:border-slate-400">
-                  <div className="flex items-center justify-between pb-2 mb-3 border-b border-slate-200">
-                    <span className="text-xs font-bold px-2 py-0.5 rounded bg-blue-100 text-blue-900 border border-blue-200 uppercase tracking-wide">
-                      Stimulus {groupIdx + 1} • {group.type}
-                    </span>
-                    <span className="text-xs font-bold text-slate-600 italic">
-                      (Untuk menjawab Soal No. {firstNum} s.d. {lastNum})
-                    </span>
-                  </div>
+                {/* Stimulus Box (Only rendered if group has stimulus) */}
+                {hasStimulus ? (
+                  <div className="p-5 sm:p-6 rounded-xl bg-slate-50/80 border-2 border-slate-300 avoid-break print:bg-white print:border-slate-400">
+                    <div className="flex items-center justify-between pb-2 mb-3 border-b border-slate-200">
+                      <span className="text-xs font-bold px-2 py-0.5 rounded bg-blue-100 text-blue-900 border border-blue-200 uppercase tracking-wide">
+                        Stimulus {groupIdx + 1} • {group.type}
+                      </span>
+                      <span className="text-xs font-bold text-slate-600 italic">
+                        (Untuk menjawab Soal No. {firstNum} s.d. {lastNum})
+                      </span>
+                    </div>
 
-                  <h3 className="text-base sm:text-lg font-bold text-slate-900 mb-2.5">
-                    {group.title}
-                  </h3>
+                    <h3 className="text-base sm:text-lg font-bold text-slate-900 mb-2.5">
+                      {group.title}
+                    </h3>
 
-                  <div className="text-sm sm:text-[15px] leading-relaxed text-slate-800 whitespace-pre-line text-justify font-serif">
-                    {group.content}
-                  </div>
+                    <div className="text-sm sm:text-[15px] leading-relaxed text-slate-800 whitespace-pre-line text-justify font-serif">
+                      {group.content}
+                    </div>
 
-                  {/* SVG Diagram if present */}
-                  {group.svgDiagram && (
-                    <div 
-                      className="my-4 max-w-md mx-auto overflow-hidden flex items-center justify-center"
-                      dangerouslySetInnerHTML={{ __html: group.svgDiagram }}
-                    />
-                  )}
+                    {/* SVG Diagram if present */}
+                    {group.svgDiagram && (
+                      <div 
+                        className="my-4 max-w-md mx-auto overflow-hidden flex items-center justify-center"
+                        dangerouslySetInnerHTML={{ __html: group.svgDiagram }}
+                      />
+                    )}
 
-                  {/* Structured Table if present */}
-                  {group.tableData && group.tableData.length > 0 && (
-                    <div className="mt-4 overflow-x-auto">
-                      <table className="w-full text-xs sm:text-sm border-collapse border border-slate-300 text-left">
-                        <thead>
-                          <tr className="bg-slate-200/80 text-slate-900">
-                            {Object.keys(group.tableData[0]).map((headerKey) => (
-                              <th key={headerKey} className="border border-slate-300 px-3 py-2 font-bold">
-                                {headerKey}
-                              </th>
-                            ))}
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {group.tableData.map((row, rIdx) => (
-                            <tr key={rIdx} className={rIdx % 2 === 0 ? 'bg-white' : 'bg-slate-50'}>
-                              {Object.values(row).map((val: any, cIdx) => (
-                                <td key={cIdx} className="border border-slate-300 px-3 py-2">
-                                  {val}
-                                </td>
+                    {/* Structured Table if present */}
+                    {group.tableData && group.tableData.length > 0 && (
+                      <div className="mt-4 overflow-x-auto">
+                        <table className="w-full text-xs sm:text-sm border-collapse border border-slate-300 text-left">
+                          <thead>
+                            <tr className="bg-slate-200/80 text-slate-900">
+                              {Object.keys(group.tableData[0]).map((headerKey) => (
+                                <th key={headerKey} className="border border-slate-300 px-3 py-2 font-bold">
+                                  {headerKey}
+                                </th>
                               ))}
                             </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
-                </div>
+                          </thead>
+                          <tbody>
+                            {group.tableData.map((row, rIdx) => (
+                              <tr key={rIdx} className={rIdx % 2 === 0 ? 'bg-white' : 'bg-slate-50'}>
+                                {Object.values(row).map((val: any, cIdx) => (
+                                  <td key={cIdx} className="border border-slate-300 px-3 py-2">
+                                    {val}
+                                  </td>
+                                ))}
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="py-2 px-3 rounded-lg bg-amber-50/80 border border-amber-200 text-amber-900 text-xs font-bold flex items-center justify-between print:hidden">
+                    <span>⚡ Soal Mandiri Langsung (Soal No. {firstNum} s.d. {lastNum})</span>
+                    <span className="text-[11px] font-normal text-amber-800">Dikerjakan langsung tanpa teks rujukan</span>
+                  </div>
+                )}
 
                 {/* 3 Questions for this Stimulus */}
                 <div className="space-y-6 pl-2 sm:pl-4">

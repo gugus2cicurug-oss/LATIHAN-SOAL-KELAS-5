@@ -173,7 +173,27 @@ export const TeacherEditorModal: React.FC<TeacherEditorModalProps> = ({
     setEditedPkg(updated);
   };
 
-  // Add an entire new stimulus group
+  // Toggle stimulus for current group
+  const handleToggleStimulus = (enable: boolean) => {
+    const updated = { ...editedPkg };
+    const grp = updated.stimulusGroups[currentStimIdx];
+    grp.hasStimulus = enable;
+    if (!enable) {
+      grp.content = '';
+      grp.title = 'Soal Mandiri (Langsung Jawab)';
+      grp.type = 'Soal Mandiri';
+    } else {
+      if (!grp.title || grp.title.includes('Mandiri')) {
+        grp.title = `Stimulus ${currentStimIdx + 1}`;
+      }
+      if (!grp.type || grp.type.includes('Mandiri')) {
+        grp.type = 'Teks Informasi & Analisis';
+      }
+    }
+    setEditedPkg(updated);
+  };
+
+  // Add an entire new stimulus group with reading text
   const handleAddNewStimulusGroup = () => {
     const updated = { ...editedPkg };
     const newStimId = `stim-${Date.now()}`;
@@ -181,6 +201,7 @@ export const TeacherEditorModal: React.FC<TeacherEditorModalProps> = ({
 
     const newGroup: StimulusGroup = {
       stimulusId: newStimId,
+      hasStimulus: true,
       title: `Stimulus Baru ${updated.stimulusGroups.length + 1}`,
       type: 'Teks Informasi & Analisis',
       content: 'Tuliskan teks narasi, bacaan sastra, tabel data, atau studi kasus stimulus di sini.',
@@ -190,7 +211,7 @@ export const TeacherEditorModal: React.FC<TeacherEditorModalProps> = ({
           type: 'pg',
           cognitiveLevel: 'L2 - Penalaran',
           competency: 'Analisis Stimulus',
-          prompt: 'Berdasarkan informasi di atas, apa kesimpulan utama yang dapat diambil?',
+          prompt: 'Berdasarkan informasi stimulus di atas, apa kesimpulan utama yang dapat diambil?',
           options: [
             { key: 'A', text: 'Pilihan simpulan benar' },
             { key: 'B', text: 'Pilihan simpulan alternatif' },
@@ -209,14 +230,51 @@ export const TeacherEditorModal: React.FC<TeacherEditorModalProps> = ({
     setSelectedStimulusIdx(updated.stimulusGroups.length - 1);
   };
 
+  // Add a standalone questions group (WITHOUT stimulus)
+  const handleAddNewStandaloneGroup = () => {
+    const updated = { ...editedPkg };
+    const newStimId = `mandiri-${Date.now()}`;
+    const nextQNum = totalQuestionsCount + 1;
+
+    const newGroup: StimulusGroup = {
+      stimulusId: newStimId,
+      hasStimulus: false,
+      title: 'Soal Mandiri (Langsung Jawab)',
+      type: 'Soal Mandiri',
+      content: '',
+      questions: [
+        {
+          number: nextQNum,
+          type: 'pg',
+          cognitiveLevel: 'L2 - Penerapan',
+          competency: 'Penguasaan Konsep Mandiri',
+          prompt: 'Tuliskan pertanyaan soal mandiri di sini (langsung to the point tanpa stimulus):',
+          options: [
+            { key: 'A', text: 'Pilihan jawaban A' },
+            { key: 'B', text: 'Pilihan jawaban B' },
+            { key: 'C', text: 'Pilihan jawaban C' },
+            { key: 'D', text: 'Pilihan jawaban D' }
+          ],
+          correctAnswer: 'A',
+          explanation: 'Uraian dan langkah penyelesaian konsep.'
+        }
+      ]
+    };
+
+    updated.stimulusGroups.push(newGroup);
+    updated.stimulusGroups = renumberAll(updated.stimulusGroups);
+    setEditedPkg(updated);
+    setSelectedStimulusIdx(updated.stimulusGroups.length - 1);
+  };
+
   // Delete current stimulus group
   const handleDeleteCurrentStimulus = () => {
     if (editedPkg.stimulusGroups.length <= 1) {
-      alert('Paket soal minimal harus memiliki 1 kelompok stimulus!');
+      alert('Paket soal minimal harus memiliki 1 kelompok soal!');
       return;
     }
     const confirmDelete = window.confirm(
-      `Yakin ingin menghapus Stimulus ${currentStimIdx + 1} berserta seluruh butir soalnya?`
+      `Yakin ingin menghapus Kelompok ${currentStimIdx + 1} berserta seluruh butir soalnya?`
     );
     if (!confirmDelete) return;
 
@@ -229,7 +287,7 @@ export const TeacherEditorModal: React.FC<TeacherEditorModalProps> = ({
 
   const handleDeleteQuestion = (qIdx: number) => {
     if (currentGroup.questions.length <= 1) {
-      alert('Setiap stimulus wajib memiliki minimal 1 soal.');
+      alert('Setiap kelompok wajib memiliki minimal 1 soal.');
       return;
     }
     const updated = { ...editedPkg };
@@ -276,6 +334,11 @@ export const TeacherEditorModal: React.FC<TeacherEditorModalProps> = ({
     onClose();
   };
 
+  const isCurrentGroupWithStimulus = currentGroup.hasStimulus !== false && Boolean(
+    (currentGroup.content && currentGroup.content.trim().length > 0) ||
+    (currentGroup.title && !currentGroup.title.toLowerCase().includes('mandiri') && !currentGroup.title.toLowerCase().includes('tanpa stimulus'))
+  );
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-2 sm:p-4 backdrop-blur-xs no-print">
       <div className="bg-white rounded-3xl max-w-5xl w-full max-h-[92vh] flex flex-col shadow-2xl border border-slate-200 overflow-hidden">
@@ -289,11 +352,11 @@ export const TeacherEditorModal: React.FC<TeacherEditorModalProps> = ({
                 <span>Editor & Generator Soal Guru</span>
               </h3>
               <span className="px-2.5 py-0.5 rounded-full bg-blue-500/20 text-blue-300 text-xs font-bold border border-blue-400/30">
-                Total {totalQuestionsCount} Soal • {editedPkg.stimulusGroups.length} Stimulus
+                Total {totalQuestionsCount} Soal • {editedPkg.stimulusGroups.length} Kelompok
               </span>
             </div>
             <p className="text-xs text-slate-300 mt-1">
-              Atur jumlah soal, tambah/hapus stimulus, ganti tipe soal, dan manfaatkan AI untuk konversi otomatis tipe soal.
+              Atur jumlah soal, tambah soal mandiri atau dengan stimulus, serta ubah bentuk soal secara instan dengan AI.
             </p>
           </div>
           <button
@@ -304,36 +367,52 @@ export const TeacherEditorModal: React.FC<TeacherEditorModalProps> = ({
           </button>
         </div>
 
-        {/* Global Toolbar: Add Stimulus & Question Counts */}
+        {/* Global Toolbar: Add Stimulus & Standalone Groups */}
         <div className="px-4 sm:px-6 py-2.5 bg-slate-50 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2">
-          {/* Stimulus Tabs */}
+          {/* Tabs */}
           <div className="flex items-center gap-1.5 overflow-x-auto py-1 max-w-full scrollbar-none">
-            {editedPkg.stimulusGroups.map((sg, idx) => (
-              <button
-                key={sg.stimulusId}
-                onClick={() => setSelectedStimulusIdx(idx)}
-                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap shrink-0 flex items-center gap-1.5 ${
-                  currentStimIdx === idx
-                    ? 'bg-blue-600 text-white shadow-sm'
-                    : 'bg-white text-slate-700 hover:bg-slate-200 border border-slate-200'
-                }`}
-              >
-                <span>Stimulus {idx + 1}</span>
-                <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${
-                  currentStimIdx === idx ? 'bg-blue-800 text-white' : 'bg-slate-200 text-slate-700'
-                }`}>
-                  {sg.questions.length}
-                </span>
-              </button>
-            ))}
+            {editedPkg.stimulusGroups.map((sg, idx) => {
+              const hasStim = sg.hasStimulus !== false && Boolean(
+                sg.content && sg.content.trim().length > 0 && !sg.title?.toLowerCase().includes('mandiri')
+              );
 
+              return (
+                <button
+                  key={sg.stimulusId}
+                  onClick={() => setSelectedStimulusIdx(idx)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap shrink-0 flex items-center gap-1.5 ${
+                    currentStimIdx === idx
+                      ? 'bg-blue-600 text-white shadow-sm'
+                      : 'bg-white text-slate-700 hover:bg-slate-200 border border-slate-200'
+                  }`}
+                >
+                  <span>{hasStim ? `📖 Stimulus ${idx + 1}` : `⚡ Mandiri ${idx + 1}`}</span>
+                  <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${
+                    currentStimIdx === idx ? 'bg-blue-800 text-white' : 'bg-slate-200 text-slate-700'
+                  }`}>
+                    {sg.questions.length}
+                  </span>
+                </button>
+              );
+            })}
+
+            {/* Quick add buttons */}
             <button
               onClick={handleAddNewStimulusGroup}
-              className="px-3 py-1.5 rounded-xl text-xs font-bold bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-300 flex items-center gap-1 shrink-0"
-              title="Tambah Kelompok Stimulus Baru"
+              className="px-2.5 py-1.5 rounded-xl text-xs font-bold bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-300 flex items-center gap-1 shrink-0"
+              title="Tambah Kelompok dengan Teks Stimulus"
             >
               <Plus className="w-3.5 h-3.5 text-emerald-600" />
-              <span>Stimulus Baru</span>
+              <span>+ Stimulus</span>
+            </button>
+
+            <button
+              onClick={handleAddNewStandaloneGroup}
+              className="px-2.5 py-1.5 rounded-xl text-xs font-bold bg-amber-50 text-amber-800 hover:bg-amber-100 border border-amber-300 flex items-center gap-1 shrink-0"
+              title="Tambah Kelompok Soal Mandiri Langsung (Tanpa Teks Bacaan)"
+            >
+              <Plus className="w-3.5 h-3.5 text-amber-600" />
+              <span>+ Soal Mandiri</span>
             </button>
           </div>
 
@@ -344,7 +423,7 @@ export const TeacherEditorModal: React.FC<TeacherEditorModalProps> = ({
               className="text-xs text-rose-600 hover:text-rose-800 font-semibold px-2.5 py-1 rounded-lg hover:bg-rose-50 flex items-center gap-1"
             >
               <Trash2 className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Hapus Stimulus Ini</span>
+              <span className="hidden sm:inline">Hapus Kelompok Ini</span>
             </button>
           </div>
         </div>
@@ -360,49 +439,93 @@ export const TeacherEditorModal: React.FC<TeacherEditorModalProps> = ({
         {/* Modal Body (Scrollable) */}
         <div className="p-4 sm:p-6 overflow-y-auto space-y-6 flex-1 text-slate-800 bg-slate-100/50">
           
-          {/* Stimulus Editor */}
+          {/* Stimulus Editor Card with Toggle */}
           <div className="p-4 sm:p-5 rounded-2xl bg-white border border-slate-200 shadow-sm space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-              <h4 className="font-extrabold text-sm text-blue-900 uppercase tracking-wide flex items-center gap-2">
-                <BookOpen className="w-4 h-4 text-blue-600" />
-                <span>Stimulus {currentStimIdx + 1} ({currentGroup.questions.length} Soal Terhubung)</span>
-              </h4>
-              <div className="text-xs text-slate-500 font-medium">
-                Rentang Butir: No. {currentGroup.questions[0]?.number || '-'} s/d No. {currentGroup.questions[currentGroup.questions.length - 1]?.number || '-'}
+            <div className="flex flex-wrap items-center justify-between border-b border-slate-100 pb-3 gap-2">
+              <div className="flex items-center gap-2">
+                <span className={`w-7 h-7 rounded-lg flex items-center justify-center font-bold text-xs ${
+                  isCurrentGroupWithStimulus ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-800'
+                }`}>
+                  {isCurrentGroupWithStimulus ? '📖' : '⚡'}
+                </span>
+                <div>
+                  <h4 className="font-extrabold text-sm text-slate-900 uppercase tracking-wide">
+                    {isCurrentGroupWithStimulus 
+                      ? `Stimulus ${currentStimIdx + 1} (${currentGroup.questions.length} Soal Terhubung)`
+                      : `Kelompok Soal Mandiri ${currentStimIdx + 1} (${currentGroup.questions.length} Soal)`}
+                  </h4>
+                  <div className="text-[11px] text-slate-500">
+                    Rentang Butir: No. {currentGroup.questions[0]?.number || '-'} s/d No. {currentGroup.questions[currentGroup.questions.length - 1]?.number || '-'}
+                  </div>
+                </div>
               </div>
+
+              {/* Toggle Stimulus Requirement */}
+              <label className="flex items-center gap-2 cursor-pointer bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-xl border border-slate-200 transition-colors select-none">
+                <input
+                  type="checkbox"
+                  checked={isCurrentGroupWithStimulus}
+                  onChange={(e) => handleToggleStimulus(e.target.checked)}
+                  className="rounded text-blue-600 focus:ring-blue-500 w-4 h-4 cursor-pointer"
+                />
+                <span className="text-xs font-bold text-slate-700">
+                  {isCurrentGroupWithStimulus ? 'Gunakan Teks Stimulus' : 'Jadikan Soal Mandiri (Tanpa Stimulus)'}
+                </span>
+              </label>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <div className="sm:col-span-2">
-                <label className="block text-xs font-bold text-slate-600 mb-1">Judul Stimulus:</label>
-                <input
-                  type="text"
-                  value={currentGroup.title}
-                  onChange={(e) => handleUpdateStimulusField('title', e.target.value)}
-                  className="w-full p-2.5 rounded-xl border border-slate-300 bg-white text-sm font-semibold focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-slate-600 mb-1">Tipe Stimulus:</label>
-                <input
-                  type="text"
-                  value={currentGroup.type}
-                  onChange={(e) => handleUpdateStimulusField('type', e.target.value)}
-                  placeholder="Misal: Teks Narasi / Infografis / Tabel"
-                  className="w-full p-2.5 rounded-xl border border-slate-300 bg-white text-xs sm:text-sm"
-                />
-              </div>
-            </div>
+            {isCurrentGroupWithStimulus ? (
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div className="sm:col-span-2">
+                    <label className="block text-xs font-bold text-slate-600 mb-1">Judul Stimulus:</label>
+                    <input
+                      type="text"
+                      value={currentGroup.title}
+                      onChange={(e) => handleUpdateStimulusField('title', e.target.value)}
+                      className="w-full p-2.5 rounded-xl border border-slate-300 bg-white text-sm font-semibold focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-600 mb-1">Tipe Stimulus:</label>
+                    <input
+                      type="text"
+                      value={currentGroup.type}
+                      onChange={(e) => handleUpdateStimulusField('type', e.target.value)}
+                      placeholder="Misal: Teks Narasi / Infografis / Tabel"
+                      className="w-full p-2.5 rounded-xl border border-slate-300 bg-white text-xs sm:text-sm"
+                    />
+                  </div>
+                </div>
 
-            <div>
-              <label className="block text-xs font-bold text-slate-600 mb-1">Teks / Narasi Stimulus:</label>
-              <textarea
-                rows={4}
-                value={currentGroup.content}
-                onChange={(e) => handleUpdateStimulusField('content', e.target.value)}
-                className="w-full p-3 rounded-xl border border-slate-300 bg-white text-xs sm:text-sm font-mono leading-relaxed focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-600 mb-1">Teks / Narasi Stimulus:</label>
+                  <textarea
+                    rows={4}
+                    value={currentGroup.content}
+                    onChange={(e) => handleUpdateStimulusField('content', e.target.value)}
+                    placeholder="Tuliskan teks bacaan, paragraf, atau data stimulus di sini..."
+                    className="w-full p-3 rounded-xl border border-slate-300 bg-white text-xs sm:text-sm font-mono leading-relaxed focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
+            ) : (
+              <div className="p-4 rounded-xl bg-amber-50/70 border border-amber-200 text-xs text-amber-900 space-y-1">
+                <div className="font-extrabold flex items-center gap-1.5 text-amber-800 text-sm">
+                  <span>⚡ Mode Soal Mandiri Langsung Aktif</span>
+                </div>
+                <p className="leading-relaxed text-slate-600">
+                  Butir-butir soal pada kelompok ini <b>tidak memerlukan teks stimulus</b>. Siswa akan langsung membaca pertanyaan dan memilih/mengisi jawaban tanpa kolom bacaan di sebelah kiri.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => handleToggleStimulus(true)}
+                  className="mt-2 text-xs font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 px-3 py-1 rounded-lg border border-blue-200"
+                >
+                  + Tambahkan Teks Bacaan / Stimulus ke Kelompok Ini
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Questions Section */}
@@ -410,7 +533,7 @@ export const TeacherEditorModal: React.FC<TeacherEditorModalProps> = ({
             <div className="flex flex-wrap items-center justify-between gap-2">
               <h4 className="font-extrabold text-sm text-slate-900 uppercase tracking-wide flex items-center gap-2">
                 <ListPlus className="w-4 h-4 text-blue-600" />
-                <span>Daftar Soal pada Stimulus {currentStimIdx + 1} ({currentGroup.questions.length} Butir):</span>
+                <span>Daftar Soal pada Kelompok Ini ({currentGroup.questions.length} Butir):</span>
               </h4>
 
               {/* Add question with type picker */}

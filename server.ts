@@ -61,6 +61,9 @@ function cleanJsonResponse(raw: string): any {
 
 // Fallback helper across models to ensure high availability during demand spikes
 async function generateWithGeminiFallback(prompt: string, mimeType = 'application/json'): Promise<{ text: string; model: string }> {
+  if (!ai) {
+    throw new Error('GEMINI_API_KEY belum dikonfigurasi di lingkungan server.');
+  }
   const candidateModels = ['gemini-flash-latest', APP_CONFIG.geminiModel, 'gemini-3.1-flash-lite'];
   let lastError: any = null;
 
@@ -92,7 +95,8 @@ app.post('/api/generate-tka', async (req: Request, res: Response): Promise<void>
     grade = 'Kelas 5 SD/MI',
     numStimulus = 4,
     numQuestions,
-    questionTypes = 'campuran' // 'campuran' | 'pg' | 'pgk' | 'bs' | 'jodohkan' | 'isian'
+    questionTypes = 'campuran', // 'campuran' | 'pg' | 'pgk' | 'bs' | 'jodohkan' | 'isian'
+    stimulusMode = 'fleksibel' // 'fleksibel' | 'dengan_stimulus' | 'tanpa_stimulus'
   } = req.body;
 
   if (!kisiKisi || typeof kisiKisi !== 'string' || kisiKisi.trim().length === 0) {
@@ -134,6 +138,21 @@ app.post('/api/generate-tka', async (req: Request, res: Response): Promise<void>
       typeInstructions = `Seluruh butir soal WAJIB berformat 'isian' (Isian Singkat berorientasi kata kunci atau angka pasti).`;
     }
 
+    let stimulusInstruction = `5. KEBIJAKAN STIMULUS (SESUAI KEBUTUHAN / FLEKSIBEL):
+   - Stimulus BUKAN keharusan untuk setiap butir soal! Tidak semua soal memerlukan stimulus.
+   - Hanya berikan stimulus (teks narasi/tabel/infografis/diagram) pada butir-butir yang benar-benar memerlukan analisis bacaan/data ("hasStimulus": true).
+   - Untuk butir soal berupa hitungan matematis langsung, pemahaman rumus, kosakata langsung, atau konsep dasar, sajikan sebagai SOAL MANDIRI LANGSUNG tanpa stimulus ("hasStimulus": false, "title": "Soal Mandiri", "content": "").`;
+
+    if (stimulusMode === 'tanpa_stimulus') {
+      stimulusInstruction = `5. KEBIJAKAN STIMULUS: TANPA STIMULUS (SELURUH SOAL MANDIRI LANGSUNG):
+   - Seluruh butir soal dibuat sebagai soal mandiri langsung (direct questions) tanpa teks bacaan pengantar.
+   - Setiap kelompok soal berikan "hasStimulus": false, "title": "Soal Mandiri (Langsung Jawab)", dan "content": "".
+   - Pertanyaan langsung menanyakan inti materi tanpa memerlukan teks stimulus.`;
+    } else if (stimulusMode === 'dengan_stimulus') {
+      stimulusInstruction = `5. KEBIJAKAN STIMULUS: WAJIB STIMULUS UNTUK SETIAP KELOMPOK SOAL:
+   - Sediakan stimulus orisinal yang kaya konteks (narasi/cerita/tabel/diagram SVG) untuk setiap kelompok soal ("hasStimulus": true).`;
+    }
+
     const prompt = `
 Bertindaklah sebagai Penyusun Asesmen Profesional Pusat Asesmen Pendidikan (Pusmendik) Kemendikdasmen RI untuk platform "KELAS 5 JUARA - TKA GURU".
 Tugas Anda adalah menghasilkan paket naskah soal Tes Kemampuan Akademik (TKA) lengkap, valid, berbobot HOTS (High Order Thinking Skills), kontekstual, dan siap uji berdasarkan kisi-kisi berikut:
@@ -147,16 +166,14 @@ ${kisiKisi.trim()}
 1. Mata Pelajaran: Deteksi otomatis dari kisi-kisi jika belum ditentukan (bisa Matematika, Bahasa Indonesia, IPAS, Pendidikan Pancasila, PADB, Seni Rupa, PJOK, Bahasa Inggris, atau Bahasa Sunda).
 2. Jenjang: ${grade}.
 3. STRUKTUR KELOMPOK SOAL:
-   - Hasilkan ${calculatedStimulusCount} kelompok stimulus (total = ${totalTargetQuestions} butir soal).
-   - PRINSIP: 1 stimulus untuk sekitar 3 butir soal yang saling berurutan dan menguji kemampuan penalaran berbeda.
+   - Hasilkan sekitar ${calculatedStimulusCount} kelompok stimulus/butir (total = ${totalTargetQuestions} butir soal).
+   - PRINSIP: Satu kelompok stimulus dapat menampung 1-3 butir soal yang saling berurutan. Jika berupa soal mandiri, satukan butir-butir mandiri dalam kelompok dengan "hasStimulus": false.
 4. VARIASI TIPE SOAL:
    ${typeInstructions}
-5. STIMULUS:
-   - Untuk Matematika/IPAS: Berikan stimulus berupa narasi cerita kehidupan nyata, tabel data terstruktur, atau data statistik yang realistis.
-   - Sediakan "svgDiagram" berupa kode SVG inline sederhana dan rapi jika soal matematika/geometri agar tampilan naskah memukau!
+${stimulusInstruction}
 6. KUNCI DAN PEMBAHASAN:
    - Kunci jawaban harus diverifikasi 100% akurat.
-   - Pembahasan wajib menyertakan langkah perhitungan matematis detail atau rujukan kalimat dalam stimulus.
+   - Pembahasan wajib menyertakan langkah perhitungan matematis detail atau rujukan kalimat/data stimulus (jika ada).
 
 Keluarkan dalam format JSON yang murni dan valid sesuai skema berikut tanpa tambahan komentar teks di luar JSON:
 {
@@ -170,9 +187,10 @@ Keluarkan dalam format JSON yang murni dan valid sesuai skema berikut tanpa tamb
   "stimulusGroups": [
     {
       "stimulusId": "stimulus-1",
-      "title": "Judul Stimulus Menarik",
-      "type": "Teks Eksplanasi / Masalah Kontekstual / Cerita Fabel / Tabel Data",
-      "content": "Isi lengkap stimulus bacaan atau deskripsi data numerik...",
+      "hasStimulus": true,
+      "title": "Judul Stimulus atau 'Soal Mandiri'",
+      "type": "Teks Eksplanasi / Masalah Kontekstual / Soal Mandiri Langsung",
+      "content": "Isi lengkap stimulus atau kosongkan (\"\") jika soal mandiri...",
       "tableData": [
         {"kolom1": "...", "kolom2": "..."}
       ],
@@ -374,8 +392,8 @@ async function startServer() {
     });
   }
 
-  app.listen(PORT, () => {
-    console.log(`[KELAS 5 JUARA] Server aktif berjalan di http://localhost:${PORT}`);
+  app.listen(Number(PORT), '0.0.0.0', () => {
+    console.log(`[KELAS 5 JUARA] Server aktif berjalan di http://0.0.0.0:${PORT}`);
   });
 }
 

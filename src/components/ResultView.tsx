@@ -543,6 +543,8 @@ export const ResultView: React.FC<ResultViewProps> = ({
           {evaluation.breakdown.map((item) => {
             const q = item.question;
             const isCorrect = item.isCorrect;
+            const parentGroup = pkg.stimulusGroups?.find((g) => g.questions?.some((iq) => iq.number === q.number));
+            const isStandalone = parentGroup ? (parentGroup.hasStimulus === false || !parentGroup.content || parentGroup.content.trim().length === 0) : false;
 
             return (
               <div
@@ -553,8 +555,8 @@ export const ResultView: React.FC<ResultViewProps> = ({
                     : 'bg-rose-50/40 border-rose-200'
                 }`}
               >
-                <div className="flex items-center justify-between pb-2 mb-3 border-b border-slate-200/80">
-                  <div className="flex items-center gap-2">
+                <div className="flex items-center justify-between pb-2 mb-3 border-b border-slate-200/80 flex-wrap gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     {isCorrect ? (
                       <span className="inline-flex items-center gap-1 text-xs font-bold px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
                         <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
@@ -569,11 +571,30 @@ export const ResultView: React.FC<ResultViewProps> = ({
                     <span className="text-xs font-bold text-slate-800">
                       Soal Nomor {q.number}
                     </span>
+                    {isStandalone ? (
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-200">
+                        ⚡ Soal Mandiri
+                      </span>
+                    ) : parentGroup?.title ? (
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-800 border border-blue-200 line-clamp-1 max-w-[200px]">
+                        📖 {parentGroup.title}
+                      </span>
+                    ) : null}
                   </div>
 
-                  <span className="text-xs font-semibold text-slate-500">
-                    {q.cognitiveLevel}
-                  </span>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-100 text-slate-700">
+                      {q.type === 'pg' ? 'Pilihan Ganda' :
+                       q.type === 'pgk' ? 'PG Kompleks' :
+                       q.type === 'bs' ? 'Benar/Salah' :
+                       q.type === 'sts' ? 'Sesuai/Tdk Sesuai' :
+                       q.type === 'jodohkan' ? 'Menjodohkan' :
+                       q.type === 'isian' ? 'Isian' : 'Standar'}
+                    </span>
+                    <span className="text-xs font-semibold text-slate-500">
+                      {q.cognitiveLevel}
+                    </span>
+                  </div>
                 </div>
 
                 {/* Prompt */}

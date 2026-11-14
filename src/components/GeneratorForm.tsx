@@ -29,6 +29,7 @@ export const GeneratorForm: React.FC<GeneratorFormProps> = ({
   const [grade, setGrade] = useState('Kelas 5 SD/MI');
   const [numQuestions, setNumQuestions] = useState<number>(12);
   const [questionTypes, setQuestionTypes] = useState<string>('campuran');
+  const [stimulusMode, setStimulusMode] = useState<string>('fleksibel'); // 'fleksibel' | 'tanpa_stimulus' | 'dengan_stimulus'
   const [detectedSubjects, setDetectedSubjects] = useState<string[]>(['matematika']);
   const [isGenerating, setIsGenerating] = useState(false);
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
@@ -80,7 +81,8 @@ export const GeneratorForm: React.FC<GeneratorFormProps> = ({
           grade,
           (step) => setCurrentStepIndex(step),
           numQuestions,
-          questionTypes
+          questionTypes,
+          stimulusMode
         );
 
         const pkg2 = await generateTKAPackageService(
@@ -89,7 +91,8 @@ export const GeneratorForm: React.FC<GeneratorFormProps> = ({
           grade,
           undefined,
           numQuestions,
-          questionTypes
+          questionTypes,
+          stimulusMode
         );
 
         setIsGenerating(false);
@@ -103,7 +106,8 @@ export const GeneratorForm: React.FC<GeneratorFormProps> = ({
           grade,
           (step) => setCurrentStepIndex(step),
           numQuestions,
-          questionTypes
+          questionTypes,
+          stimulusMode
         );
 
         setIsGenerating(false);
@@ -221,12 +225,12 @@ export const GeneratorForm: React.FC<GeneratorFormProps> = ({
         </div>
       </div>
 
-      {/* Question Count & Question Type Configuration */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6 p-4 rounded-2xl bg-blue-50/60 border border-blue-200">
+      {/* Question Count, Question Type & Stimulus Policy Configuration */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6 p-4 rounded-2xl bg-blue-50/60 border border-blue-200">
         <div>
           <label className="block text-xs font-bold text-slate-800 mb-1.5 uppercase tracking-wide flex items-center justify-between">
             <span>🎯 Target Jumlah Soal:</span>
-            <span className="text-blue-700 font-extrabold">{numQuestions} Butir Soal</span>
+            <span className="text-blue-700 font-extrabold">{numQuestions} Butir</span>
           </label>
           <select
             value={numQuestions}
@@ -234,23 +238,23 @@ export const GeneratorForm: React.FC<GeneratorFormProps> = ({
             onChange={(e) => setNumQuestions(Number(e.target.value))}
             className="w-full p-2.5 rounded-xl border border-slate-300 bg-white font-bold text-xs sm:text-sm text-slate-800 focus:ring-2 focus:ring-blue-600 focus:outline-none"
           >
-            <option value={3}>3 Soal (1 Stimulus Ringkas)</option>
-            <option value={6}>6 Soal (2 Stimulus)</option>
-            <option value={9}>9 Soal (3 Stimulus)</option>
-            <option value={12}>12 Soal (4 Stimulus - Rekomendasi Cepat)</option>
-            <option value={15}>15 Soal (5 Stimulus)</option>
-            <option value={18}>18 Soal (6 Stimulus - Standar Penuh)</option>
-            <option value={24}>24 Soal (8 Stimulus)</option>
-            <option value={30}>30 Soal (10 Stimulus - Ujian Lengkap)</option>
+            <option value={3}>3 Soal</option>
+            <option value={6}>6 Soal</option>
+            <option value={9}>9 Soal</option>
+            <option value={12}>12 Soal (Rekomendasi Cepat)</option>
+            <option value={15}>15 Soal</option>
+            <option value={18}>18 Soal (Standar)</option>
+            <option value={24}>24 Soal</option>
+            <option value={30}>30 Soal (Ujian Lengkap)</option>
           </select>
           <span className="text-[11px] text-slate-500 mt-1 block">
-            AI menyusun ~{Math.ceil(numQuestions / 3)} kelompok stimulus konteks nyata.
+            Target total butir soal latihan.
           </span>
         </div>
 
         <div>
           <label className="block text-xs font-bold text-slate-800 mb-1.5 uppercase tracking-wide">
-            📝 Bentuk / Jenis Soal yang Dibuat:
+            📝 Bentuk / Jenis Soal:
           </label>
           <select
             value={questionTypes}
@@ -266,7 +270,30 @@ export const GeneratorForm: React.FC<GeneratorFormProps> = ({
             <option value="isian">✏️ Isian Singkat</option>
           </select>
           <span className="text-[11px] text-slate-500 mt-1 block">
-            Dapat dirubah menjadi bentuk lain sewaktu-waktu dengan AI di editor.
+            Format butir soal yang di-generate.
+          </span>
+        </div>
+
+        <div>
+          <label className="block text-xs font-bold text-slate-800 mb-1.5 uppercase tracking-wide">
+            📖 Kebijakan Stimulus:
+          </label>
+          <select
+            value={stimulusMode}
+            disabled={isGenerating}
+            onChange={(e) => setStimulusMode(e.target.value)}
+            className="w-full p-2.5 rounded-xl border border-blue-300 bg-white font-bold text-xs sm:text-sm text-blue-900 focus:ring-2 focus:ring-blue-600 focus:outline-none"
+          >
+            <option value="fleksibel">✨ Sesuai Kebutuhan (Fleksibel)</option>
+            <option value="tanpa_stimulus">⚡ Tanpa Stimulus (Soal Mandiri)</option>
+            <option value="dengan_stimulus">📚 Wajib Stimulus (Semua Soal)</option>
+          </select>
+          <span className="text-[11px] text-slate-500 mt-1 block">
+            {stimulusMode === 'tanpa_stimulus' 
+              ? 'Seluruh soal langsung to the point tanpa bacaan pengantar.' 
+              : stimulusMode === 'dengan_stimulus' 
+              ? 'Semua soal memiliki teks bacaan/diagram rujukan.' 
+              : 'Gunakan stimulus hanya pada soal yang membutuhkan analisis.'}
           </span>
         </div>
       </div>

@@ -67,7 +67,8 @@ export async function generateTKAPackageService(
   grade: string = 'Kelas 5 SD/MI',
   onProgress?: (stepIndex: number) => void,
   numQuestions: number = 12,
-  questionTypes: string = 'campuran'
+  questionTypes: string = 'campuran',
+  stimulusMode: string = 'fleksibel'
 ): Promise<TKAPackage> {
   // Simulate progress step updates
   if (onProgress) onProgress(0); // step 1
@@ -83,7 +84,8 @@ export async function generateTKAPackageService(
         subjectName: subjectOverride,
         grade,
         numQuestions,
-        questionTypes
+        questionTypes,
+        stimulusMode
       })
     });
 
@@ -104,7 +106,10 @@ export async function generateTKAPackageService(
           timeLimitMinutes: pkgData.timeLimitMinutes || 45,
           competencySummary: pkgData.competencySummary || 'Uji Kompetensi Akademik Berdasarkan Kisi-Kisi.',
           createdAt: new Date().toISOString().split('T')[0],
-          stimulusGroups: pkgData.stimulusGroups || []
+          stimulusGroups: (pkgData.stimulusGroups || []).map((sg: any) => ({
+            ...sg,
+            hasStimulus: sg.hasStimulus !== false && Boolean(sg.content && sg.content.trim().length > 0 && !sg.title?.toLowerCase().includes('tanpa stimulus'))
+          }))
         };
         if (onProgress) onProgress(6); // step 7
         return newPkg;
@@ -115,7 +120,7 @@ export async function generateTKAPackageService(
   }
 
   // Smart Contextual Engine Fallback
-  return generateIntelligentFallbackPackage(kisiKisi, subjectOverride, grade, onProgress);
+  return generateIntelligentFallbackPackage(kisiKisi, subjectOverride, grade, onProgress, stimulusMode);
 }
 
 /**
@@ -125,7 +130,8 @@ function generateIntelligentFallbackPackage(
   kisiKisi: string,
   subjectOverride?: string,
   grade: string = 'Kelas 5 SD/MI',
-  onProgress?: (stepIndex: number) => void
+  onProgress?: (stepIndex: number) => void,
+  stimulusMode: string = 'fleksibel'
 ): Promise<TKAPackage> {
   return new Promise((resolve) => {
     let currentStep = 0;

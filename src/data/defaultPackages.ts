@@ -40,6 +40,7 @@ export interface StimulusGroup {
   title: string;
   type: string;
   content: string;
+  hasStimulus?: boolean; // false jika butir soal mandiri (tanpa teks bacaan/stimulus)
   tableData?: Record<string, any>[];
   svgDiagram?: string;
   questions: QuestionItem[];
